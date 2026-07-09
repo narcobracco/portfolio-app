@@ -402,44 +402,70 @@ function pieOpts(center){
       tooltip:{enabled:false}  // niente tooltip fluttuante: il dettaglio va al centro della ciambella
     }}; }
 
+const DETAIL_TABS=[
+  {k:'all',            label:'Tutte',          f:()=>true},
+  {k:'azionario',      label:'Azionario',      f:a=>a.classe==='azionario'},
+  {k:'obbligazionario',label:'Obbligazionario',f:a=>a.classe==='obbligazionario'},
+  {k:'monetario',      label:'Monetario',      f:a=>a.classe==='monetario'},
+  {k:'materie',        label:'Materie/Oro',    f:a=>a.classe==='materie prime'},
+  {k:'bitcoin',        label:'Bitcoin',        f:a=>a.classe==='bitcoin'},
+  {k:'etf',            label:'ETF/ETC/ETN',    f:a=>['ETF','ETC','ETN','ETP'].includes(a.tipo)},
+];
 function assetTable(){
   const tot=totInvestito()||1;
-  const rows=assetsFiltered().map(({a,pf})=>{
+  const tab=DETAIL_TABS.find(t=>t.k===(state.detailTab||'all'))||DETAIL_TABS[0];
+  const list=assetsFiltered().filter(({a})=>tab.f(a));
+  const rows=list.map(({a,pf})=>{
     const v=valore(a), c=costo(a), p=pl(a), pp=c?p/c*100:0;
     const attualePct=v/tot*100;
     const targetEur=(a.targetPct||0)/100*tot;
-    const deltaEur=targetEur-v; // >0 manca, <0 superato
+    const deltaEur=v-targetEur;                  // + sopra target · − sotto (da incrementare)
     const deltaPct=attualePct-(a.targetPct||0);
     const live=priceIsLive(a);
     const clTag = a.classe==='materie prime'?'materie':a.classe;
-    return `<tr>
-      <td><b>${esc(a.nome)}</b> <span class="pill">${esc(a.tipo)}</span><br><span class="muted" style="font-size:11px">${esc(pf.nome)} · ${esc(a.mercato)} · ${esc(a.isin)}${a.ticker?' · '+esc(a.ticker):''}</span></td>
+    const pAtt=priceUnit(a);
+    const buy = live && pAtt < prezzoMeno10(a);   // sotto il prezzo medio −10% → occasione
+    return `<tr${buy?' style="box-shadow:inset 3px 0 0 var(--pos)"':''}>
+      <td><b>${esc(a.nome)}</b> <span class="pill">${esc(a.tipo)}</span>${buy?' <span class="pill" style="background:#12331f;color:#7be3a0">▼ DA COMPRARE</span>':''}<br><span class="muted" style="font-size:11px">${esc(pf.nome)} · ${esc(a.mercato)} · ${esc(a.isin)}${a.ticker?' · '+esc(a.ticker):''}</span></td>
       <td class="tag ${clTag}">${esc(a.classe)}</td>
       <td class="mono">${fmt(a.quote,0)}</td>
       <td class="mono">${fmt(a.prezzoMedio)}${a.prezzoQuote==='percent'?'<span class="muted"> /100</span>':''}</td>
-      <td class="mono">${fmt(prezzoMeno10(a))}</td>
-      <td class="mono">${priceUnit(a)!=null?fmt(priceUnit(a)):'—'} ${live?'<span class="pill" style="color:#7be3a0">live</span>':'<span class="pill">n/d</span>'}</td>
+      <td class="mono" title="prezzo medio −10%: sotto questa soglia scatta 'da comprare'">${fmt(prezzoMeno10(a))}</td>
+      <td class="mono ${buy?'pos':''}">${pAtt!=null?fmt(pAtt):'—'} ${live?(buy?'<span class="pill" style="background:#12331f;color:#7be3a0">◀ sotto −10%</span>':'<span class="pill" style="color:#7be3a0">live</span>'):'<span class="pill">n/d</span>'}</td>
       <td class="mono">${eur(v)}</td>
       <td class="mono ${p>=0?'pos':'neg'}">${eur(p)}<br><span style="font-size:11px">${pct(pp)}</span></td>
       <td class="mono">${pct(attualePct)}</td>
       <td class="mono">${pct(a.targetPct||0)}</td>
-      <td class="mono ${deltaEur>=0?'':'neg'}">${deltaEur>=0?'manca ':'oltre '}${eur(Math.abs(deltaEur))}<br><span style="font-size:11px">${deltaPct>=0?'+':''}${fmt(deltaPct)} p.p.</span></td>
+      <td class="mono ${deltaEur>=0?'':'neg'}">${deltaEur>=0?'+':'−'} ${eur(Math.abs(deltaEur))}<br><span style="font-size:11px">${deltaPct>=0?'+':'−'} ${fmt(Math.abs(deltaPct))} p.p.</span></td>
     </tr>`;
   }).join('');
-  const inv=totInvestito(), c=totCosto(), p=inv-c;
-  const sumTarget=assetsFiltered().reduce((s,{a})=>s+(Number(a.targetPct)||0),0);
-  const targetCls = Math.abs(sumTarget-100)<0.05 ? '' : 'neg';
-  return el(`<div class="card" style="overflow-x:auto"><table>
+  const inv=list.reduce((s,{a})=>s+valore(a),0);
+  const cst=list.reduce((s,{a})=>s+costo(a),0);
+  const p=inv-cst;
+  const sumTarget=list.reduce((s,{a})=>s+(Number(a.targetPct)||0),0);
+  const targetCls = (state.detailTab||'all')==='all' && Math.abs(sumTarget-100)>=0.05 ? 'neg' : '';
+  const quotaWhole = inv/tot*100;
+  // tab
+  const tabsEl=el('<div class="flex" style="gap:6px;margin-bottom:10px;flex-wrap:wrap"></div>');
+  for(const t of DETAIL_TABS){
+    const n=assetsFiltered().filter(({a})=>t.f(a)).length;
+    if(t.k!=='all' && n===0) continue;   // nascondi tab vuote
+    const b=el(`<button class="mini" style="${t.k===tab.k?'background:var(--accent);color:#fff;border-color:var(--accent)':''}">${t.label}${t.k!=='all'?` <span style="opacity:.7">${n}</span>`:''}</button>`);
+    b.onclick=()=>{ state.detailTab=t.k; render(); };
+    tabsEl.appendChild(b);
+  }
+  const card=el(`<div class="card" style="overflow-x:auto"><table>
     <thead><tr>
       <th>Asset</th><th>Classe</th><th>Quote</th><th>Prz. medio</th><th>Medio −10%</th><th>Prz. attuale</th>
       <th>Valore</th><th>P/L</th><th>% attuale</th><th>% target</th><th>Delta a target</th>
     </tr></thead>
-    <tbody>${rows||'<tr><td colspan="11" class="muted">Nessun asset. Vai su Portafogli per aggiungerne.</td></tr>'}</tbody>
+    <tbody>${rows||'<tr><td colspan="11" class="muted">Nessun asset in questa categoria.</td></tr>'}</tbody>
     <tfoot><tr style="font-weight:700">
-      <td>Totale</td><td></td><td></td><td></td><td></td><td></td>
-      <td class="mono">${eur(inv)}</td><td class="mono ${p>=0?'pos':'neg'}">${eur(p)}</td><td class="mono">100 %</td><td class="mono ${targetCls}" title="somma delle % target">${fmt(sumTarget)} %</td><td></td>
+      <td>${tab.k==='all'?'Totale':tab.label}</td><td></td><td></td><td></td><td></td><td></td>
+      <td class="mono">${eur(inv)}</td><td class="mono ${p>=0?'pos':'neg'}">${eur(p)}</td><td class="mono">${pct(quotaWhole)}</td><td class="mono ${targetCls}" title="somma delle % target">${fmt(sumTarget)} %</td><td></td>
     </tr></tfoot>
   </table></div>`);
+  const wrap=el('<div></div>'); wrap.append(tabsEl,card); return wrap;
 }
 
 // ---------------- Portafogli (CRUD) ----------------
