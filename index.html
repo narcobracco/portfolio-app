@@ -296,12 +296,13 @@ function renderDashboard(){
   wrap.appendChild(pfSelector());
   const inv=totInvestito(), cost=totCosto(), liq=totLiquidita();
   const plTot=inv-cost, plPct=cost? plTot/cost*100:0;
+  const cedTot=assetsFiltered().reduce((s,{a})=>s+(Number(a.liquidazioni)||0),0);
   const patrimonio=inv+liq;
   // KPI
   const k=el('<div class="grid kpis"></div>');
   k.appendChild(kpi('Patrimonio totale', eur(patrimonio), 'investito + liquidità'));
   k.appendChild(kpi('Investito', eur(inv), `costo ${eur(cost)}`));
-  k.appendChild(kpi('P/L non realizzato', eur(plTot), pct(plPct), plTot>=0?'pos':'neg'));
+  k.appendChild(kpi('P/L non realizzato', eur(plTot), cedTot>0?`${pct(plPct)} · +${eur(cedTot,0)} cedole → tot ${eur(plTot+cedTot,0)}`:pct(plPct), plTot>=0?'pos':'neg'));
   k.appendChild(kpi('Liquidità in banca', eur(liq), liquiditaEntries().filter(c=>c.banca).map(c=>c.banca).join(', ')||'—'));
   const allA=assetsFiltered().map(x=>x.a); const wTer=terMedioPonderato(allA);
   if(wTer!=null) k.appendChild(kpi('TER medio ponderato', pct(wTer), `~${eur(costoAnnuoStimato(allA),0)}/anno di costi stimati`, wTer>1?'neg':''));
@@ -451,6 +452,8 @@ function assetTable(){
   const list=assetsFiltered().filter(({a})=>tab.f(a));
   const rows=list.map(({a,pf})=>{
     const v=valore(a), c=costo(a), p=pl(a), pp=c?p/c*100:0;
+    const ced=Number(a.liquidazioni)||0;         // cedole/proventi incassati
+    const totPL=p+ced, totPct=c?totPL/c*100:0;   // rendimento totale = prezzo + cedole
     const ownTot=portfolioValue(pf.id)||1;       // % e target SEMPRE sul portafoglio dell'asset
     const attualePct=v/ownTot*100;
     const targetEur=(a.targetPct||0)/100*ownTot;
@@ -469,7 +472,7 @@ function assetTable(){
       <td class="mono" title="prezzo medio −10%: sotto questa soglia scatta 'da comprare'">${fmt(prezzoMeno10(a))}</td>
       <td class="mono ${buy?'pos':''}">${pAtt!=null?fmt(pAtt):'—'} ${live?(buy?'<span title="sotto il prezzo medio −10% · occasione d\'acquisto" style="color:#7be3a0;font-size:13px">▼</span>':'<span class="pill" style="color:#7be3a0">live</span>'):'<span class="pill">n/d</span>'}</td>
       <td class="mono">${eur(v)}</td>
-      <td class="mono ${p>=0?'pos':'neg'}">${eur(p)}<br><span style="font-size:11px">${pct(pp)}</span></td>
+      <td class="mono ${p>=0?'pos':'neg'}">${eur(p)}<br><span style="font-size:11px">${pct(pp)}</span>${ced>0?`<br><span class="${totPL>=0?'pos':'neg'}" style="font-size:10.5px" title="rendimento totale = P/L di prezzo + cedole incassate (${eur(ced)})">↳ tot ${eur(totPL)} · ${pct(totPct)}</span>`:''}</td>
       <td class="mono">${pct(attualePct,1)}</td>
       <td class="mono">${pct(a.targetPct||0,1)}</td>
       <td class="mono ${deltaEur>=0?'pos':'neg'}">${deltaEur>=0?'+':'−'} ${eur(Math.abs(deltaEur))}<br><span style="font-size:11px">${deltaPct>=0?'+':'−'} ${fmt(Math.abs(deltaPct),1)} p.p.</span></td>
@@ -672,6 +675,7 @@ function editAsset(pf,a){
     <div class="frow"><label>Target %</label><input id="f-target" type="number" step="any" value="${a.targetPct??''}"></div>
     <div class="frow"><label>TER % annuo</label><input id="f-ter" type="number" step="any" placeholder="solo fondi/ETF (es. 0.20) · vuoto per azioni/BTP" value="${a.ter??''}"></div>
     <div class="frow"><label>Accumulo / Distrib.</label><select id="f-ad"><option value="" ${!a.accDist?'selected':''}>— non specificato</option><option value="acc" ${a.accDist==='acc'?'selected':''}>Accumulo</option><option value="dist" ${a.accDist==='dist'?'selected':''}>Distribuzione (stacca cedole/dividendi)</option></select></div>
+    <div class="frow"><label>Cedole incassate €</label><input id="f-ced" type="number" step="any" placeholder="proventi/dividendi già incassati (per il rendimento totale)" value="${a.liquidazioni??''}"></div>
     <p class="hint">Prezzo medio −10% (calcolato): <b id="pm10">${a.prezzoMedio?fmt(a.prezzoMedio*0.9):'—'}</b>. Il “Simbolo Yahoo” serve per i prezzi live (per Borsa Italiana quasi sempre <code>TICKER.MI</code>).</p>
     ${geoHtml(a.isin)}
     <div class="modal-actions"><button class="toolbtn" id="cancel">Annulla</button><button class="add" id="ok">Salva</button></div></div>`);
@@ -689,7 +693,8 @@ function editAsset(pf,a){
     const pman=g('#f-pman'); if(pman!=='') obj.prezzoManuale=Number(pman);
     const ter=g('#f-ter'); if(ter!=='') obj.ter=Number(ter);
     const ad=g('#f-ad'); if(ad!=='') obj.accDist=ad;
-    if(isNew){ pf.assets.push(obj); } else { delete a.ter; delete a.accDist; Object.assign(a,obj); }
+    const ced=g('#f-ced'); if(ced!=='') obj.liquidazioni=Number(ced);
+    if(isNew){ pf.assets.push(obj); } else { delete a.ter; delete a.accDist; delete a.liquidazioni; Object.assign(a,obj); }
     markDirty(); closeModal(); render();
   };
 }
