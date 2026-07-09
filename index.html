@@ -350,6 +350,8 @@ function assetTable(){
     </tr>`;
   }).join('');
   const inv=totInvestito(), c=totCosto(), p=inv-c;
+  const sumTarget=assetsFiltered().reduce((s,{a})=>s+(Number(a.targetPct)||0),0);
+  const targetCls = Math.abs(sumTarget-100)<0.05 ? '' : 'neg';
   return el(`<div class="card" style="overflow-x:auto"><table>
     <thead><tr>
       <th>Asset</th><th>Classe</th><th>Quote</th><th>Prz. medio</th><th>Medio −10%</th><th>Prz. attuale</th>
@@ -358,7 +360,7 @@ function assetTable(){
     <tbody>${rows||'<tr><td colspan="11" class="muted">Nessun asset. Vai su Portafogli per aggiungerne.</td></tr>'}</tbody>
     <tfoot><tr style="font-weight:700">
       <td>Totale</td><td></td><td></td><td></td><td></td><td></td>
-      <td class="mono">${eur(inv)}</td><td class="mono ${p>=0?'pos':'neg'}">${eur(p)}</td><td class="mono">100 %</td><td></td><td></td>
+      <td class="mono">${eur(inv)}</td><td class="mono ${p>=0?'pos':'neg'}">${eur(p)}</td><td class="mono">100 %</td><td class="mono ${targetCls}" title="somma delle % target">${fmt(sumTarget)} %</td><td></td>
     </tr></tfoot>
   </table></div>`);
 }
@@ -543,20 +545,31 @@ function gh(){ const repo=localStorage.getItem(LS.repo), token=localStorage.getI
   return {repo,token,headers:{'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json'}}; }
 function b64utf8(str){ return btoa(unescape(encodeURIComponent(str))); }
 
+async function freshSha(c,path){
+  // sha SEMPRE aggiornato: cache-bust + no-store per evitare il conflitto 409
+  const get=await fetch(`https://api.github.com/repos/${c.repo}/contents/${path}?ref=main&_=${Date.now()}`,
+    {headers:{...c.headers,'Cache-Control':'no-cache'},cache:'no-store'});
+  if(get.ok) return (await get.json()).sha;
+  if(get.status===404) return null; // file non esiste ancora
+  throw new Error('lettura sha: '+get.status);
+}
 async function saveToGitHub(){
   const c=gh(); if(!c) return;
   state.portfolio.meta=state.portfolio.meta||{}; state.portfolio.meta.updatedAt=new Date().toISOString();
   const path='data/portfolio.json';
+  const body=b64utf8(JSON.stringify(state.portfolio,null,2));
+  toast('ok','Salvataggio in corso…',true);
   try{
-    toast('ok','Salvataggio in corso…',true);
-    let sha=null;
-    const get=await fetch(`https://api.github.com/repos/${c.repo}/contents/${path}`,{headers:c.headers});
-    if(get.ok){ sha=(await get.json()).sha; }
-    const put=await fetch(`https://api.github.com/repos/${c.repo}/contents/${path}`,{method:'PUT',headers:c.headers,
-      body:JSON.stringify({message:'chore: aggiorna portfolio da app',content:b64utf8(JSON.stringify(state.portfolio,null,2)),sha})});
-    if(!put.ok) throw new Error((await put.json()).message||put.status);
-    localStorage.removeItem(LS.dirty); hideBanner(); toast('ok','✔ Salvato su GitHub.');
-  }catch(e){ toast('err','Errore salvataggio: '+e.message); }
+    for(let tent=1; tent<=3; tent++){
+      const sha=await freshSha(c,path);
+      const put=await fetch(`https://api.github.com/repos/${c.repo}/contents/${path}`,{method:'PUT',headers:c.headers,
+        body:JSON.stringify({message:'chore: aggiorna portfolio da app',content:body,sha})});
+      if(put.ok){ localStorage.removeItem(LS.dirty); hideBanner(); toast('ok','✔ Salvato su GitHub.'); return; }
+      // 409 = conflitto sha (qualcuno/qualcosa ha scritto nel frattempo): riprova con sha fresco
+      if(put.status===409 && tent<3){ await new Promise(r=>setTimeout(r,500)); continue; }
+      throw new Error((await put.json()).message||put.status);
+    }
+  }catch(e){ toast('err','Errore salvataggio: '+e.message,true); }
 }
 
 async function triggerWorkflow(mode){
