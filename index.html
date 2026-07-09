@@ -330,19 +330,28 @@ function initChartPlugins(){
       const {ctx,chartArea}=chart; if(!chartArea) return;
       const x=(chartArea.left+chartArea.right)/2, y=(chartArea.top+chartArea.bottom)/2;
       const dark=matchMedia('(prefers-color-scheme: dark)').matches;
-      let big, small, color=dark?'#e8edf2':'#1a2330';
+      const baseCol=dark?'#e8edf2':'#1a2330', mutedCol=dark?'#93a1b0':'#5b6b7c';
+      let lines;
       const act=chart.getActiveElements();
       if(act && act.length){
         const i=act[0].index, data=chart.data.datasets[0].data;
         const tot=data.reduce((a,b)=>a+b,0)||1;
-        big=(data[i]/tot*100).toFixed(1)+'%';
-        small=String(chart.data.labels[i]||'');
-        color=chart.data.datasets[0].backgroundColor[i]||color;  // colore della fetta
-      } else { big=t.value; small=(t.title||'').toUpperCase(); }
-      if(small.length>18) small=small.slice(0,17)+'…';
+        const sliceCol=chart.data.datasets[0].backgroundColor[i]||baseCol;
+        let label=String(chart.data.labels[i]||''); if(label.length>16) label=label.slice(0,15)+'…';
+        lines=[  // fetta: importo €, etichetta, percentuale (tutti insieme, niente sparizioni)
+          {t:fmt(data[i],0)+' €', f:'700 18px system-ui', c:baseCol},
+          {t:label,               f:'500 11px system-ui', c:mutedCol},
+          {t:(data[i]/tot*100).toFixed(1)+'%', f:'700 13px system-ui', c:sliceCol},
+        ];
+      } else {
+        lines=[  // a riposo: totale
+          {t:t.value,                    f:'700 20px system-ui', c:baseCol},
+          {t:(t.title||'').toUpperCase(), f:'500 10.5px system-ui', c:mutedCol},
+        ];
+      }
       ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillStyle=color; ctx.font='700 20px system-ui'; ctx.fillText(big,x,y-8);
-      ctx.fillStyle=dark?'#93a1b0':'#5b6b7c'; ctx.font='500 11px system-ui'; ctx.fillText(small,x,y+13);
+      const lh=16, startY=y-(lines.length-1)*lh/2;
+      lines.forEach((ln,k)=>{ ctx.font=ln.f; ctx.fillStyle=ln.c; ctx.fillText(ln.t,x,startY+k*lh); });
       ctx.restore();
     }
   });
