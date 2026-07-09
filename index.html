@@ -71,7 +71,7 @@
   .frow input,.frow select{width:100%}
   .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
   .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
-  .banner{padding:10px 14px;border-radius:10px;margin-bottom:14px;font-size:13px;display:none}
+  .banner{position:fixed;top:60px;left:50%;transform:translateX(-50%);width:min(920px,calc(100% - 24px));z-index:60;padding:12px 16px;border-radius:10px;font-size:13px;display:none;box-shadow:0 10px 34px rgba(0,0,0,.4)}
   .banner.show{display:block}
   .banner.dirty{background:#3a2e12;color:#ffce6b;border:1px solid #5a4620}
   .banner.ok{background:#12331f;color:#7be3a0;border:1px solid #2a5a3a}
