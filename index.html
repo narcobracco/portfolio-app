@@ -660,9 +660,10 @@ function gh(){ const repo=localStorage.getItem(LS.repo), token=localStorage.getI
 function b64utf8(str){ return btoa(unescape(encodeURIComponent(str))); }
 
 async function freshSha(c,path){
-  // sha SEMPRE aggiornato: cache-bust + no-store per evitare il conflitto 409
+  // sha SEMPRE aggiornato: cache-bust via query param + no-store (niente header
+  // Cache-Control, che romperebbe il CORS preflight di GitHub).
   const get=await fetch(`https://api.github.com/repos/${c.repo}/contents/${path}?ref=main&_=${Date.now()}`,
-    {headers:{...c.headers,'Cache-Control':'no-cache'},cache:'no-store'});
+    {headers:c.headers,cache:'no-store'});
   if(get.ok) return (await get.json()).sha;
   if(get.status===404) return null; // file non esiste ancora
   throw new Error('lettura sha: '+get.status);
