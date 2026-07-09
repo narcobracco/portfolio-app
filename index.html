@@ -458,9 +458,8 @@ function assetTable(){
     const clTag = a.classe==='materie prime'?'materie':a.classe;
     const pAtt=priceUnit(a);
     const buy = live && pAtt < prezzoMeno10(a);   // sotto il prezzo medio −10% → occasione
-    return `<tr${buy?' style="box-shadow:inset 3px 0 0 var(--pos)"':''}>
+    return `<tr style="box-shadow:inset 4px 0 0 ${CLASS_COLOR[a.classe]||'#94a3b8'}" title="Classe: ${esc(a.classe)}">
       <td><b>${esc(a.nome)}</b> <span class="pill">${esc(a.tipo)}</span>${buy?' <span class="pill" style="background:#12331f;color:#7be3a0">▼ DA COMPRARE</span>':''}<br><span class="muted" style="font-size:11px">${esc(pf.nome)} · ${esc(a.mercato)} · ${esc(a.isin)}${a.ticker?' · '+esc(a.ticker):''}</span></td>
-      <td style="text-align:left"><span class="tag ${clTag}">${esc(a.classe)}</span></td>
       <td style="text-align:left" title="Accumulo / Distribuzione">${a.accDist?`<span class="pill" style="${a.accDist==='dist'?'background:#3d2f1a;color:#f5c97b':'background:#1e3d34;color:#7be3c0'}">${a.accDist==='dist'?'Dist':'Acc'}</span>`:'<span class="muted">—</span>'}</td>
       <td class="mono" title="costo annuo del prodotto (TER)">${(a.ter!=null&&a.ter!=='')?fmt(a.ter,2)+' %':'<span class="muted">—</span>'}</td>
       <td class="mono">${fmt(a.quote,0)}</td>
@@ -490,14 +489,22 @@ function assetTable(){
     b.onclick=()=>{ state.detailTab=t.k; render(); };
     tabsEl.appendChild(b);
   }
+  // legenda colori-classe (la colonna Classe è stata sostituita dal bordo colorato a sinistra)
+  const presenti=new Set(list.map(x=>x.a.classe));
+  const legend=el('<div class="flex" style="gap:11px;font-size:11px;color:var(--muted);margin-left:auto"></div>');
+  for(const [cls,col] of Object.entries(CLASS_COLOR)){
+    if(!presenti.has(cls)) continue;
+    legend.appendChild(el(`<span style="display:inline-flex;align-items:center;gap:5px"><i style="width:11px;height:11px;border-radius:3px;background:${col};display:inline-block"></i>${cls}</span>`));
+  }
+  tabsEl.appendChild(legend);
   const card=el(`<div class="card" style="overflow-x:auto"><table>
     <thead><tr>
-      <th>Asset</th><th style="text-align:left">Classe</th><th style="text-align:left">A/D</th><th>TER</th><th>Quote</th><th>Prz. medio</th><th>Medio −10%</th><th>Prz. attuale</th>
+      <th>Asset</th><th style="text-align:left">A/D</th><th>TER</th><th>Quote</th><th>Prz. medio</th><th>Medio −10%</th><th>Prz. attuale</th>
       <th>Valore</th><th>P/L</th><th>% attuale</th><th>% target</th><th>Delta a target</th>
     </tr></thead>
-    <tbody>${rows||'<tr><td colspan="13" class="muted">Nessun asset in questa categoria.</td></tr>'}</tbody>
+    <tbody>${rows||'<tr><td colspan="12" class="muted">Nessun asset in questa categoria.</td></tr>'}</tbody>
     <tfoot><tr style="font-weight:700">
-      <td>${tab.k==='all'?'Totale':tab.label}</td><td></td><td></td><td class="mono" title="TER medio ponderato">${wTer!=null?fmt(wTer,2)+' %':''}</td><td></td><td></td><td></td><td></td>
+      <td>${tab.k==='all'?'Totale':tab.label}</td><td></td><td class="mono" title="TER medio ponderato">${wTer!=null?fmt(wTer,2)+' %':''}</td><td></td><td></td><td></td><td></td>
       <td class="mono">${eur(inv)}</td><td class="mono ${p>=0?'pos':'neg'}">${eur(p)}</td><td class="mono">${pct(quotaWhole,1)}</td><td class="mono ${targetCls}" title="somma delle % target">${fmt(sumTarget,1)} %</td><td></td>
     </tr></tfoot>
   </table></div>`);
