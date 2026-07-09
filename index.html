@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestione Investimenti</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171c22; --panel2:#1e242c; --line:#2a323c;
+    --txt:#e8edf2; --muted:#93a1b0; --accent:#4c9ffe; --pos:#31c48d; --neg:#f05252;
+    --chip:#232a33;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f4f6f9; --panel:#ffffff; --panel2:#f0f3f7; --line:#e2e8f0;
+      --txt:#1a2330; --muted:#5b6b7c; --chip:#eef2f7; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt)}
+  header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.2px}
+  nav{display:flex;gap:4px;flex-wrap:wrap}
+  nav button{background:transparent;color:var(--muted);border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px}
+  nav button.active{background:var(--accent);color:#fff}
+  nav button:hover:not(.active){background:var(--chip);color:var(--txt)}
+  .spacer{flex:1}
+  .toolbtn{background:var(--chip);color:var(--txt);border:1px solid var(--line);padding:7px 11px;border-radius:8px;cursor:pointer;font-size:12.5px}
+  .toolbtn:hover{border-color:var(--accent)}
+  .toolbtn.warn{color:#ffb020;border-color:#5a4620}
+  main{padding:18px;max-width:1240px;margin:0 auto}
+  .grid{display:grid;gap:14px}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .cards2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .card h3{margin:0 0 12px;font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+  .kpi .val{font-size:24px;font-weight:700;margin-top:4px}
+  .kpi .sub{font-size:12px;color:var(--muted);margin-top:3px}
+  .pos{color:var(--pos)} .neg{color:var(--neg)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 9px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;cursor:default}
+  tbody tr:hover{background:var(--panel2)}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;background:var(--chip);color:var(--muted)}
+  .tag.azionario{background:#1e3a5f;color:#8ec5ff}
+  .tag.obbligazionario{background:#3d2f1a;color:#f5c97b}
+  .tag.monetario{background:#1e3d34;color:#7be3c0}
+  .tag\.materieprime{}
+  .tag.materie{background:#3d2a1a;color:#f0b27a}
+  .tag.bitcoin{background:#3d3416;color:#f7d154}
+  .bar{height:6px;border-radius:4px;background:var(--chip);overflow:hidden;min-width:60px}
+  .bar>i{display:block;height:100%}
+  .muted{color:var(--muted)}
+  .right{text-align:right}
+  .mono{font-variant-numeric:tabular-nums}
+  .selectrow{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  select,input{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  .chart-wrap{position:relative;height:300px}
+  .chart-wrap.tall{height:340px}
+  button.mini{background:var(--chip);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:5px 9px;cursor:pointer;font-size:12px}
+  button.mini:hover{border-color:var(--accent)}
+  button.mini.danger:hover{border-color:var(--neg);color:var(--neg)}
+  .add{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600}
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:30px 14px;overflow:auto}
+  .modal-bg.open{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;width:100%;max-width:640px}
+  .modal h2{margin:0 0 16px;font-size:16px}
+  .frow{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;margin-bottom:10px}
+  .frow label{color:var(--muted);font-size:12.5px}
+  .frow input,.frow select{width:100%}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+  .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+  .banner{padding:10px 14px;border-radius:10px;margin-bottom:14px;font-size:13px;display:none}
+  .banner.show{display:block}
+  .banner.dirty{background:#3a2e12;color:#ffce6b;border:1px solid #5a4620}
+  .banner.ok{background:#12331f;color:#7be3a0;border:1px solid #2a5a3a}
+  .banner.err{background:#3a1618;color:#ffb0b0;border:1px solid #6a2a2a}
+  .pill{font-size:11px;padding:2px 7px;border-radius:12px;background:var(--chip);color:var(--muted)}
+  .flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .grow{flex:1}
+  h2.sec{font-size:15px;margin:22px 0 10px}
+  .foot{color:var(--muted);font-size:12px;text-align:center;padding:24px 0}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>💼 Gestione Investimenti</h1>
+  <nav id="nav"></nav>
+  <span class="spacer"></span>
+  <span id="lastupd" class="pill"></span>
+  <button class="toolbtn" id="btn-prices">↻ Prezzi</button>
+  <button class="toolbtn" id="btn-countries">↻ Composizioni</button>
+  <button class="toolbtn" id="btn-save">☁ Salva</button>
+</header>
+<main>
+  <div id="banner" class="banner"></div>
+  <div id="view"></div>
+  <div class="foot">Dati salvati in file JSON · nessun database · <span id="repo-foot"></span></div>
+</main>
+
+<div class="modal-bg" id="modal-bg"><div class="modal" id="modal"></div></div>
+
+<script>
+"use strict";
+// =========================================================================
+//  Stato & caricamento
+// =========================================================================
+const LS = {
+  portfolio:'pf_portfolio', dirty:'pf_dirty', token:'pf_token', repo:'pf_repo'
+};
+const state = {
+  portfolio:null, market:{prezzi:{}}, breakdown:{byIsin:{}},
+  history:{snapshots:[]}, assetHistory:{},
+  view:'dashboard', pfFilter:'ALL', charts:[]
+};
+const CLASSI = ["azionario","obbligazionario","monetario","materie prime","bitcoin"];
+const TIPI = ["ETF","ETC","ETN","ETP","BTP","Fondo","Azione"];
+const MERCATI = ["Borsa Italiana","XETRA","Altro"];
+const CLASS_COLOR = {
+  "azionario":"#4c9ffe","obbligazionario":"#f5c97b","monetario":"#7be3c0",
+  "materie prime":"#f0b27a","bitcoin":"#f7d154"
+};
+const PIE_COLORS = ["#4c9ffe","#31c48d","#f7d154","#f0b27a","#a78bfa","#f05252","#38bdf8","#fb7185","#a3e635","#e879f9","#94a3b8","#facc15","#22d3ee","#c084fc"];
+
+function fmt(n,dec=2){ if(n==null||isNaN(n)) return "—"; return n.toLocaleString('it-IT',{minimumFractionDigits:dec,maximumFractionDigits:dec}); }
+function eur(n,dec=2){ return fmt(n,dec)+" €"; }
+function pct(n,dec=2){ if(n==null||isNaN(n)) return "—"; return fmt(n,dec)+" %"; }
+function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstElementChild; }
+function esc(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// Lettura file locali (solo per sviluppo / uso da Google Drive senza GitHub)
+async function loadJSON(path, fallback){
+  try{ const r=await fetch(path+'?_='+Date.now()); if(!r.ok) throw 0; return await r.json(); }
+  catch(e){ return fallback; }
+}
+// Lettura sicura: se c'è repo+token legge dal repo PRIVATO via API (dati mai pubblici),
+// altrimenti prova i file locali affianco all'app (../data/...).
+async function readData(path, fallback){
+  const repo=localStorage.getItem(LS.repo), token=localStorage.getItem(LS.token);
+  if(repo && token){
+    try{
+      const r=await fetch(`https://api.github.com/repos/${repo}/contents/${path}?ref=main&_=${Date.now()}`,
+        {headers:{'Authorization':'Bearer '+token,'Accept':'application/vnd.github.raw+json'}});
+      if(r.ok) return await r.json();
+    }catch(e){ /* fallback sotto */ }
+  }
+  return await loadJSON('../'+path, fallback);
+}
+async function boot(){
+  const repo=localStorage.getItem(LS.repo)||''; document.getElementById('repo-foot').innerHTML = repo? `repo <b>${esc(repo)}</b>` : 'repo non configurato';
+  // portfolio: usa la copia locale se ci sono modifiche non salvate
+  const local = localStorage.getItem(LS.portfolio);
+  const fileP = await readData('data/portfolio.json', null);
+  if(local && localStorage.getItem(LS.dirty)==='1'){ state.portfolio = JSON.parse(local); }
+  else { state.portfolio = fileP || JSON.parse(local||'null') || emptyPortfolio(); }
+  state.market   = await readData('data/market.json',   {prezzi:{}});
+  state.breakdown= await readData('data/breakdown.json',{byIsin:{}});
+  state.history  = await readData('data/history.json',  {snapshots:[]});
+  state.assetHistory = await readData('data/asset_history.json', {});
+  const ts=state.market.aggiornatoAt;
+  document.getElementById('lastupd').textContent = ts? 'Prezzi: '+new Date(ts).toLocaleString('it-IT') : 'Prezzi non aggiornati';
+  refreshDirtyBanner();
+  render();
+}
+function emptyPortfolio(){ return {meta:{baseCurrency:"EUR"},settings:{aggregaBtcOroInAzionario:false},liquidita:[],portafogli:[]}; }
+
+// =========================================================================
+//  Calcoli
+// =========================================================================
+function priceUnit(a){ // prezzo corrente per "quota", in EUR
+  const m=state.market.prezzi?.[a.id];
+  if(m && m.prezzo!=null) return m.prezzo;
+  if(a.prezzoManuale!=null && a.prezzoManuale!=='') return Number(a.prezzoManuale);
+  return a.prezzoMedio; // fallback: nessun prezzo -> P/L 0
+}
+function priceIsLive(a){ const m=state.market.prezzi?.[a.id]; return !!(m&&m.prezzo!=null); }
+function costo(a){ return a.prezzoQuote==='percent' ? a.quote*a.prezzoMedio/100 : a.quote*a.prezzoMedio; }
+function valore(a){ const p=priceUnit(a); return a.prezzoQuote==='percent' ? a.quote*p/100 : a.quote*p; }
+function pl(a){ return valore(a)-costo(a); }
+function prezzoMeno10(a){ return a.prezzoMedio*0.9; }
+
+function assetsFiltered(){
+  const list=[];
+  for(const pf of state.portfolio.portafogli){
+    if(state.pfFilter!=='ALL' && pf.id!==state.pfFilter) continue;
+    for(const a of pf.assets) list.push({a,pf});
+  }
+  return list;
+}
+function totInvestito(){ return assetsFiltered().reduce((s,{a})=>s+valore(a),0); }
+function totCosto(){ return assetsFiltered().reduce((s,{a})=>s+costo(a),0); }
+function totLiquidita(){ return (state.portfolio.liquidita||[]).reduce((s,c)=>s+Number(c.importo||0),0); }
+
+function classeAgg(cl){
+  if(state.portfolio.settings?.aggregaBtcOroInAzionario && (cl==='bitcoin'||cl==='materie prime')) return 'azionario';
+  return cl;
+}
+function composizioneClassi(){
+  const m={}; for(const {a} of assetsFiltered()){ const k=classeAgg(a.classe); m[k]=(m[k]||0)+valore(a); } return m;
+}
+function concentrazionePaesi(){
+  const m={}; const tot=totInvestito()||1;
+  for(const {a} of assetsFiltered()){
+    const v=valore(a); const bd=state.breakdown.byIsin?.[a.isin];
+    if(bd && bd.paesi){ for(const [p,w] of Object.entries(bd.paesi)) m[p]=(m[p]||0)+v*(w/100); }
+    else { m['Non mappato']=(m['Non mappato']||0)+v; }
+  }
+  return m;
+}
+
+// =========================================================================
+//  Render
+// =========================================================================
+function destroyCharts(){ state.charts.forEach(c=>{try{c.destroy()}catch(e){}}); state.charts=[]; }
+function render(){
+  destroyCharts();
+  document.getElementById('nav').innerHTML='';
+  [['dashboard','Dashboard'],['portafogli','Portafogli'],['liquidita','Liquidità'],['impostazioni','Impostazioni']]
+    .forEach(([k,label])=>{
+      const b=el(`<button class="${state.view===k?'active':''}">${label}</button>`);
+      b.onclick=()=>{state.view=k;render();}; document.getElementById('nav').appendChild(b);
+    });
+  const v=document.getElementById('view'); v.innerHTML='';
+  if(state.view==='dashboard') v.appendChild(renderDashboard());
+  else if(state.view==='portafogli') v.appendChild(renderPortafogli());
+  else if(state.view==='liquidita') v.appendChild(renderLiquidita());
+  else v.appendChild(renderImpostazioni());
+}
+
+function pfSelector(){
+  const row=el('<div class="selectrow"></div>');
+  const sel=el('<select></select>');
+  sel.appendChild(el(`<option value="ALL">Tutti i portafogli</option>`));
+  for(const pf of state.portfolio.portafogli) sel.appendChild(el(`<option value="${pf.id}" ${state.pfFilter===pf.id?'selected':''}>${esc(pf.nome)}${pf.dove?' · '+esc(pf.dove):''}</option>`));
+  sel.value=state.pfFilter;
+  sel.onchange=()=>{state.pfFilter=sel.value;render();};
+  row.append(el('<span class="muted">Vista:</span>'), sel);
+  return row;
+}
+
+function renderDashboard(){
+  const wrap=el('<div></div>');
+  wrap.appendChild(pfSelector());
+  const inv=totInvestito(), cost=totCosto(), liq=totLiquidita();
+  const plTot=inv-cost, plPct=cost? plTot/cost*100:0;
+  const patrimonio=inv+liq;
+  // KPI
+  const k=el('<div class="grid kpis"></div>');
+  k.appendChild(kpi('Patrimonio totale', eur(patrimonio), 'investito + liquidità'));
+  k.appendChild(kpi('Investito', eur(inv), `costo ${eur(cost)}`));
+  k.appendChild(kpi('P/L non realizzato', eur(plTot), pct(plPct), plTot>=0?'pos':'neg'));
+  k.appendChild(kpi('Liquidità in banca', eur(liq), (state.portfolio.liquidita||[]).filter(c=>c.banca).map(c=>c.banca).join(', ')||'—'));
+  wrap.appendChild(k);
+  // charts
+  const cc=el('<div class="grid cards2" style="margin-top:14px"></div>');
+  cc.appendChild(cardCanvas('Composizione per classe','c-classi'));
+  cc.appendChild(cardCanvas('Concentrazione geografica','c-paesi'));
+  wrap.appendChild(cc);
+  const cc2=el('<div class="grid" style="margin-top:14px"></div>');
+  cc2.appendChild(cardCanvas('Andamento nel tempo'+(state.pfFilter==='ALL'?' (totale)':''),'c-andamento','tall'));
+  wrap.appendChild(cc2);
+  // table
+  wrap.appendChild(el('<h2 class="sec">Dettaglio posizioni</h2>'));
+  wrap.appendChild(assetTable());
+  setTimeout(drawDashboardCharts,0);
+  return wrap;
+}
+function kpi(title,val,sub,cls=''){ return el(`<div class="card kpi"><h3>${title}</h3><div class="val ${cls}">${val}</div><div class="sub">${sub||''}</div></div>`); }
+function cardCanvas(title,id,extra=''){ return el(`<div class="card"><h3>${title}</h3><div class="chart-wrap ${extra}"><canvas id="${id}"></canvas></div></div>`); }
+
+function drawDashboardCharts(){
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const gridc = dark? '#2a323c':'#e2e8f0'; const txt=dark?'#93a1b0':'#5b6b7c';
+  Chart.defaults.color=txt; Chart.defaults.font.family='system-ui';
+  // classi
+  const cl=composizioneClassi(); const clk=Object.keys(cl); const clv=Object.values(cl);
+  const c1=document.getElementById('c-classi');
+  if(c1) state.charts.push(new Chart(c1,{type:'doughnut',
+    data:{labels:clk,datasets:[{data:clv,backgroundColor:clk.map(k=>CLASS_COLOR[k]||'#94a3b8'),borderWidth:0}]},
+    options:pieOpts()}));
+  // paesi
+  const pa=concentrazionePaesi(); let entries=Object.entries(pa).sort((a,b)=>b[1]-a[1]);
+  if(entries.length>10){ const top=entries.slice(0,9); const rest=entries.slice(9).reduce((s,e)=>s+e[1],0); top.push(['Altri paesi',rest]); entries=top; }
+  const c2=document.getElementById('c-paesi');
+  if(c2) state.charts.push(new Chart(c2,{type:'doughnut',
+    data:{labels:entries.map(e=>e[0]),datasets:[{data:entries.map(e=>e[1]),backgroundColor:entries.map((_,i)=>PIE_COLORS[i%PIE_COLORS.length]),borderWidth:0}]},
+    options:pieOpts()}));
+  // andamento
+  const snaps=(state.history.snapshots||[]);
+  let labels=[],dataline=[];
+  if(snaps.length){
+    labels=snaps.map(s=>s.data);
+    dataline=snaps.map(s=> state.pfFilter==='ALL'? s.totale : (s.perPortafoglio?.[state.pfFilter]??null));
+  }
+  const c3=document.getElementById('c-andamento');
+  if(c3){
+    if(!snaps.length){ c3.parentElement.innerHTML='<p class="muted" style="padding:30px;text-align:center">Ancora nessuno storico. Verrà popolato ad ogni aggiornamento prezzi (uno snapshot al giorno).</p>'; }
+    else state.charts.push(new Chart(c3,{type:'line',
+      data:{labels,datasets:[{label:'Valore',data:dataline,borderColor:'#4c9ffe',backgroundColor:'rgba(76,159,254,.12)',fill:true,tension:.25,pointRadius:0,borderWidth:2}]},
+      options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:gridc}},y:{grid:{color:gridc},ticks:{callback:v=>fmt(v,0)+' €'}}}}}));
+  }
+}
+function pieOpts(){ return {maintainAspectRatio:false,cutout:'58%',plugins:{legend:{position:'right',labels:{boxWidth:12,padding:8,font:{size:11}}},
+  tooltip:{callbacks:{label:ctx=>{const tot=ctx.dataset.data.reduce((a,b)=>a+b,0)||1;return ` ${ctx.label}: ${eur(ctx.raw)} (${(ctx.raw/tot*100).toFixed(1)}%)`;}}}}}; }
+
+function assetTable(){
+  const tot=totInvestito()||1;
+  const rows=assetsFiltered().map(({a,pf})=>{
+    const v=valore(a), c=costo(a), p=pl(a), pp=c?p/c*100:0;
+    const attualePct=v/tot*100;
+    const targetEur=(a.targetPct||0)/100*tot;
+    const deltaEur=targetEur-v; // >0 manca, <0 superato
+    const deltaPct=attualePct-(a.targetPct||0);
+    const live=priceIsLive(a);
+    const clTag = a.classe==='materie prime'?'materie':a.classe;
+    return `<tr>
+      <td><b>${esc(a.nome)}</b> <span class="pill">${esc(a.tipo)}</span><br><span class="muted" style="font-size:11px">${esc(pf.nome)} · ${esc(a.mercato)} · ${esc(a.isin)}${a.ticker?' · '+esc(a.ticker):''}</span></td>
+      <td class="tag ${clTag}">${esc(a.classe)}</td>
+      <td class="mono">${fmt(a.quote,0)}</td>
+      <td class="mono">${fmt(a.prezzoMedio)}${a.prezzoQuote==='percent'?'<span class="muted"> /100</span>':''}</td>
+      <td class="mono">${fmt(prezzoMeno10(a))}</td>
+      <td class="mono">${priceUnit(a)!=null?fmt(priceUnit(a)):'—'} ${live?'<span class="pill" style="color:#7be3a0">live</span>':'<span class="pill">n/d</span>'}</td>
+      <td class="mono">${eur(v)}</td>
+      <td class="mono ${p>=0?'pos':'neg'}">${eur(p)}<br><span style="font-size:11px">${pct(pp)}</span></td>
+      <td class="mono">${pct(attualePct)}</td>
+      <td class="mono">${pct(a.targetPct||0)}</td>
+      <td class="mono ${deltaEur>=0?'':'neg'}">${deltaEur>=0?'manca ':'oltre '}${eur(Math.abs(deltaEur))}<br><span style="font-size:11px">${deltaPct>=0?'+':''}${fmt(deltaPct)} p.p.</span></td>
+    </tr>`;
+  }).join('');
+  const inv=totInvestito(), c=totCosto(), p=inv-c;
+  return el(`<div class="card" style="overflow-x:auto"><table>
+    <thead><tr>
+      <th>Asset</th><th>Classe</th><th>Quote</th><th>Prz. medio</th><th>Medio −10%</th><th>Prz. attuale</th>
+      <th>Valore</th><th>P/L</th><th>% attuale</th><th>% target</th><th>Delta a target</th>
+    </tr></thead>
+    <tbody>${rows||'<tr><td colspan="11" class="muted">Nessun asset. Vai su Portafogli per aggiungerne.</td></tr>'}</tbody>
+    <tfoot><tr style="font-weight:700">
+      <td>Totale</td><td></td><td></td><td></td><td></td><td></td>
+      <td class="mono">${eur(inv)}</td><td class="mono ${p>=0?'pos':'neg'}">${eur(p)}</td><td class="mono">100 %</td><td></td><td></td>
+    </tr></tfoot>
+  </table></div>`);
+}
+
+// ---------------- Portafogli (CRUD) ----------------
+function renderPortafogli(){
+  const wrap=el('<div></div>');
+  const head=el('<div class="flex" style="margin-bottom:12px"><h2 class="sec" style="margin:0">Portafogli</h2><span class="grow"></span></div>');
+  const addPf=el('<button class="add">+ Nuovo portafoglio</button>'); addPf.onclick=()=>editPortfolio(null); head.appendChild(addPf);
+  wrap.appendChild(head);
+  for(const pf of state.portfolio.portafogli){
+    const inv=pf.assets.reduce((s,a)=>s+valore(a),0);
+    const card=el(`<div class="card" style="margin-bottom:14px">
+      <div class="flex"><div><b style="font-size:15px">${esc(pf.nome)}</b> ${pf.dove?`<span class="pill">${esc(pf.dove)}</span>`:''}
+        <div class="muted" style="font-size:12px">${pf.assets.length} asset · ${eur(inv)}</div></div>
+        <span class="grow"></span>
+        <button class="mini" data-a="edit">✎ Rinomina</button>
+        <button class="mini" data-a="add">+ Asset</button>
+        <button class="mini danger" data-a="del">🗑 Elimina</button>
+      </div></div>`);
+    card.querySelector('[data-a=edit]').onclick=()=>editPortfolio(pf);
+    card.querySelector('[data-a=add]').onclick=()=>editAsset(pf,null);
+    card.querySelector('[data-a=del]').onclick=()=>{ if(confirm(`Eliminare il portafoglio "${pf.nome}" e i suoi asset?`)){ state.portfolio.portafogli=state.portfolio.portafogli.filter(x=>x!==pf); markDirty(); render(); } };
+    if(pf.assets.length){
+      const t=el('<div style="overflow-x:auto;margin-top:6px"><table><thead><tr><th>Asset</th><th>Tipo</th><th>Classe</th><th>Mercato</th><th>Quote</th><th>Prz.medio</th><th>Medio −10%</th><th>Valore</th><th>Target%</th><th></th></tr></thead><tbody></tbody></table></div>');
+      const tb=t.querySelector('tbody');
+      for(const a of pf.assets){
+        const r=el(`<tr>
+          <td><b>${esc(a.nome)}</b><br><span class="muted" style="font-size:11px">${esc(a.isin)}${a.ticker?' · '+esc(a.ticker):''}${a.yahoo?' · '+esc(a.yahoo):''}</span></td>
+          <td>${esc(a.tipo)}</td><td>${esc(a.classe)}</td><td>${esc(a.mercato)}</td>
+          <td class="mono">${fmt(a.quote,0)}</td><td class="mono">${fmt(a.prezzoMedio)}</td><td class="mono">${fmt(prezzoMeno10(a))}</td>
+          <td class="mono">${eur(valore(a))}</td><td class="mono">${fmt(a.targetPct||0)}</td>
+          <td><button class="mini" data-e>✎</button> <button class="mini danger" data-d>🗑</button></td></tr>`);
+        r.querySelector('[data-e]').onclick=()=>editAsset(pf,a);
+        r.querySelector('[data-d]').onclick=()=>{ if(confirm(`Eliminare ${a.nome}?`)){ pf.assets=pf.assets.filter(x=>x!==a); markDirty(); render(); } };
+        tb.appendChild(r);
+      }
+      card.appendChild(t);
+    }
+    wrap.appendChild(card);
+  }
+  return wrap;
+}
+
+// ---------------- Liquidità ----------------
+function renderLiquidita(){
+  const wrap=el('<div></div>');
+  const head=el('<div class="flex" style="margin-bottom:12px"><h2 class="sec" style="margin:0">Capitale fermo in banca</h2><span class="grow"></span></div>');
+  const add=el('<button class="add">+ Aggiungi conto</button>');
+  add.onclick=()=>{ state.portfolio.liquidita.push({id:'cash-'+Date.now(),banca:'',importo:0,note:''}); markDirty(); render(); };
+  head.appendChild(add); wrap.appendChild(head);
+  const card=el('<div class="card" style="overflow-x:auto"><table><thead><tr><th>Banca / Conto</th><th>Importo (€)</th><th>Note</th><th></th></tr></thead><tbody></tbody></table></div>');
+  const tb=card.querySelector('tbody');
+  for(const c of (state.portfolio.liquidita||[])){
+    const r=el(`<tr>
+      <td><input value="${esc(c.banca)}" style="width:200px" data-f="banca"></td>
+      <td><input type="number" step="0.01" value="${c.importo}" style="width:140px;text-align:right" data-f="importo"></td>
+      <td><input value="${esc(c.note||'')}" style="width:240px" data-f="note"></td>
+      <td><button class="mini danger" data-d>🗑</button></td></tr>`);
+    r.querySelectorAll('input').forEach(inp=>inp.onchange=()=>{ c[inp.dataset.f]= inp.dataset.f==='importo'? Number(inp.value): inp.value; markDirty(); refreshFooterTotals(); });
+    r.querySelector('[data-d]').onclick=()=>{ state.portfolio.liquidita=state.portfolio.liquidita.filter(x=>x!==c); markDirty(); render(); };
+    tb.appendChild(r);
+  }
+  wrap.appendChild(card);
+  wrap.appendChild(el(`<p class="hint">Totale liquidità: <b id="liqtot">${eur(totLiquidita())}</b>. Questo capitale è tenuto separato dagli investimenti e sommato nel “Patrimonio totale”.</p>`));
+  return wrap;
+}
+function refreshFooterTotals(){ const e=document.getElementById('liqtot'); if(e) e.textContent=eur(totLiquidita()); }
+
+// ---------------- Impostazioni ----------------
+function renderImpostazioni(){
+  const s=state.portfolio.settings||(state.portfolio.settings={});
+  const wrap=el('<div></div>');
+  wrap.appendChild(el('<h2 class="sec">Impostazioni</h2>'));
+  // aggregazione
+  const c1=el(`<div class="card" style="margin-bottom:14px"><h3>Classificazione Bitcoin & Oro</h3>
+    <label class="flex"><input type="checkbox" id="agg" ${s.aggregaBtcOroInAzionario?'checked':''}> Aggrega <b>Bitcoin</b> e <b>Oro/Materie prime</b> nell'<b>azionario</b> nei grafici</label>
+    <p class="hint">Di default Bitcoin e Oro hanno una <b>classe propria</b> (non sono azionario). Attiva questa opzione se, per la tua allocazione di rischio, li consideri assimilabili all'azionario. Cambia solo la torta “composizione per classe”.</p></div>`);
+  c1.querySelector('#agg').onchange=e=>{ s.aggregaBtcOroInAzionario=e.target.checked; markDirty(); };
+  wrap.appendChild(c1);
+  // github
+  const repo=localStorage.getItem(LS.repo)||''; const tok=localStorage.getItem(LS.token)||'';
+  const c2=el(`<div class="card" style="margin-bottom:14px"><h3>Salvataggio & aggiornamento (GitHub)</h3>
+    <div class="frow"><label>Repository</label><input id="repo" placeholder="narcobracco/portfolio" value="${esc(repo)}"></div>
+    <div class="frow"><label>Token (fine-grained)</label><input id="tok" type="password" placeholder="github_pat_..." value="${esc(tok)}"></div>
+    <p class="hint">Serve un <b>Personal Access Token fine-grained</b> con permessi, su questo repo, di <b>Contents: Read&Write</b> e <b>Actions: Read&Write</b>. Viene salvato solo nel browser (localStorage). Con il token attivo puoi salvare i dati e lanciare gli aggiornamenti anche da telefono.</p>
+    <div class="flex"><button class="add" id="savecfg">Salva configurazione</button>
+      <button class="toolbtn" id="reload">↻ Ricarica dati da GitHub (scarta modifiche locali)</button></div></div>`);
+  c2.querySelector('#savecfg').onclick=()=>{ localStorage.setItem(LS.repo,document.getElementById('repo').value.trim()); localStorage.setItem(LS.token,document.getElementById('tok').value.trim()); toast('ok','Configurazione salvata.'); document.getElementById('repo-foot').innerHTML=`repo <b>${esc(document.getElementById('repo').value.trim())}</b>`; };
+  c2.querySelector('#reload').onclick=async()=>{ if(confirm('Scartare le modifiche locali non salvate e ricaricare dal repo?')){ localStorage.removeItem(LS.portfolio); localStorage.removeItem(LS.dirty); await boot(); toast('ok','Dati ricaricati.'); } };
+  wrap.appendChild(c2);
+  // import/export
+  const c3=el(`<div class="card"><h3>Backup manuale</h3>
+    <div class="flex"><button class="toolbtn" id="exp">⬇ Esporta portfolio.json</button>
+      <label class="toolbtn" style="cursor:pointer">⬆ Importa JSON<input type="file" id="imp" accept="application/json" style="display:none"></label></div>
+    <p class="hint">Utile se preferisci sincronizzare la cartella su Google Drive a mano invece di usare GitHub.</p></div>`);
+  c3.querySelector('#exp').onclick=()=>download('portfolio.json',JSON.stringify(state.portfolio,null,2));
+  c3.querySelector('#imp').onchange=e=>{ const f=e.target.files[0]; if(!f)return; const rd=new FileReader(); rd.onload=()=>{ try{ state.portfolio=JSON.parse(rd.result); markDirty(); render(); toast('ok','Importato.'); }catch(err){ toast('err','JSON non valido.'); } }; rd.readAsText(f); };
+  wrap.appendChild(c3);
+  return wrap;
+}
+
+// =========================================================================
+//  Modale form (portafoglio / asset)
+// =========================================================================
+function openModal(html){ const m=document.getElementById('modal'); m.innerHTML=''; m.appendChild(el(html)); document.getElementById('modal-bg').classList.add('open'); return m; }
+function closeModal(){ document.getElementById('modal-bg').classList.remove('open'); }
+document.getElementById('modal-bg').addEventListener('click',e=>{ if(e.target.id==='modal-bg') closeModal(); });
+
+function editPortfolio(pf){
+  const isNew=!pf;
+  const m=openModal(`<div><h2>${isNew?'Nuovo portafoglio':'Modifica portafoglio'}</h2>
+    <div class="frow"><label>Nome</label><input id="f-nome" value="${esc(pf?.nome||'')}"></div>
+    <div class="frow"><label>Dove è investito</label><input id="f-dove" placeholder="es. Directa, Fineco..." value="${esc(pf?.dove||'')}"></div>
+    <div class="modal-actions"><button class="toolbtn" id="cancel">Annulla</button><button class="add" id="ok">Salva</button></div></div>`);
+  m.querySelector('#cancel').onclick=closeModal;
+  m.querySelector('#ok').onclick=()=>{
+    const nome=m.querySelector('#f-nome').value.trim(); if(!nome){toast('err','Il nome è obbligatorio');return;}
+    if(isNew){ state.portfolio.portafogli.push({id:'pf-'+Date.now(),nome,dove:m.querySelector('#f-dove').value.trim(),assets:[]}); }
+    else { pf.nome=nome; pf.dove=m.querySelector('#f-dove').value.trim(); }
+    markDirty(); closeModal(); render();
+  };
+}
+
+function editAsset(pf,a){
+  const isNew=!a; a=a||{prezzoQuote:'unit',classe:'azionario',tipo:'ETF',mercato:'Borsa Italiana'};
+  const opt=(arr,val)=>arr.map(x=>`<option ${x===val?'selected':''}>${x}</option>`).join('');
+  const m=openModal(`<div><h2>${isNew?'Nuovo asset':'Modifica asset'} · ${esc(pf.nome)}</h2>
+    <div class="frow"><label>Nome</label><input id="f-nome" value="${esc(a.nome||'')}"></div>
+    <div class="frow"><label>Tipo</label><select id="f-tipo">${opt(TIPI,a.tipo)}</select></div>
+    <div class="frow"><label>Mercato</label><select id="f-mercato">${opt(MERCATI,a.mercato)}</select></div>
+    <div class="frow"><label>Classe</label><select id="f-classe">${opt(CLASSI,a.classe)}</select></div>
+    <div class="frow"><label>Quote / Nominale</label><input id="f-quote" type="number" step="any" value="${a.quote??''}"></div>
+    <div class="frow"><label>Prezzo medio acquisto</label><input id="f-pm" type="number" step="any" value="${a.prezzoMedio??''}"></div>
+    <div class="frow"><label>Quotazione</label><select id="f-pq"><option value="unit" ${a.prezzoQuote!=='percent'?'selected':''}>Per quota (ETF/azioni)</option><option value="percent" ${a.prezzoQuote==='percent'?'selected':''}>In % del nominale (BTP/bond)</option></select></div>
+    <div class="frow"><label>ISIN</label><input id="f-isin" value="${esc(a.isin||'')}"></div>
+    <div class="frow"><label>Ticker</label><input id="f-ticker" value="${esc(a.ticker||'')}"></div>
+    <div class="frow"><label>Simbolo Yahoo</label><input id="f-yahoo" placeholder="es. SWDA.MI (per prezzi live)" value="${esc(a.yahoo||'')}"></div>
+    <div class="frow"><label>Prezzo manuale</label><input id="f-pman" type="number" step="any" placeholder="solo se nessun simbolo Yahoo (es. BTP)" value="${a.prezzoManuale??''}"></div>
+    <div class="frow"><label>Target %</label><input id="f-target" type="number" step="any" value="${a.targetPct??''}"></div>
+    <p class="hint">Prezzo medio −10% (calcolato): <b id="pm10">${a.prezzoMedio?fmt(a.prezzoMedio*0.9):'—'}</b>. Il “Simbolo Yahoo” serve per i prezzi live (per Borsa Italiana quasi sempre <code>TICKER.MI</code>).</p>
+    <div class="modal-actions"><button class="toolbtn" id="cancel">Annulla</button><button class="add" id="ok">Salva</button></div></div>`);
+  m.querySelector('#f-pm').oninput=e=>{ const val=parseFloat(e.target.value); m.querySelector('#pm10').textContent= isNaN(val)?'—':fmt(val*0.9); };
+  m.querySelector('#cancel').onclick=closeModal;
+  m.querySelector('#ok').onclick=()=>{
+    const g=id=>m.querySelector(id).value;
+    const nome=g('#f-nome').trim(); if(!nome){toast('err','Nome obbligatorio');return;}
+    const obj={
+      id:a.id||('a-'+Date.now()), nome, tipo:g('#f-tipo'), mercato:g('#f-mercato'), classe:g('#f-classe'),
+      quote:Number(g('#f-quote')||0), prezzoMedio:Number(g('#f-pm')||0), prezzoQuote:g('#f-pq'),
+      isin:g('#f-isin').trim(), ticker:g('#f-ticker').trim(), yahoo:g('#f-yahoo').trim(),
+      targetPct:g('#f-target')===''?0:Number(g('#f-target'))
+    };
+    const pman=g('#f-pman'); if(pman!=='') obj.prezzoManuale=Number(pman);
+    if(isNew){ pf.assets.push(obj); } else { Object.assign(a,obj); }
+    markDirty(); closeModal(); render();
+  };
+}
+
+// =========================================================================
+//  Dirty / salvataggio / banner
+// =========================================================================
+function markDirty(){ localStorage.setItem(LS.portfolio,JSON.stringify(state.portfolio)); localStorage.setItem(LS.dirty,'1'); refreshDirtyBanner(); }
+function refreshDirtyBanner(){ if(localStorage.getItem(LS.dirty)==='1') toast('dirty','⚠ Hai modifiche non salvate. Premi “☁ Salva” per scriverle su GitHub (o esportale in Impostazioni).',true); else hideBanner(); }
+let bannerTimer=null;
+function toast(kind,msg,sticky=false){ const b=document.getElementById('banner'); b.className='banner show '+kind; b.textContent=msg; if(bannerTimer)clearTimeout(bannerTimer); if(!sticky) bannerTimer=setTimeout(hideBanner,4000); }
+function hideBanner(){ const b=document.getElementById('banner'); if(localStorage.getItem(LS.dirty)==='1'){ refreshDirtyBanner(); return;} b.className='banner'; }
+
+function download(name,text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'application/json'})); a.download=name; a.click(); }
+
+// =========================================================================
+//  GitHub API
+// =========================================================================
+function gh(){ const repo=localStorage.getItem(LS.repo), token=localStorage.getItem(LS.token);
+  if(!repo||!token){ toast('err','Configura repository e token in Impostazioni.'); return null; }
+  return {repo,token,headers:{'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json'}}; }
+function b64utf8(str){ return btoa(unescape(encodeURIComponent(str))); }
+
+async function saveToGitHub(){
+  const c=gh(); if(!c) return;
+  state.portfolio.meta=state.portfolio.meta||{}; state.portfolio.meta.updatedAt=new Date().toISOString();
+  const path='data/portfolio.json';
+  try{
+    toast('ok','Salvataggio in corso…',true);
+    let sha=null;
+    const get=await fetch(`https://api.github.com/repos/${c.repo}/contents/${path}`,{headers:c.headers});
+    if(get.ok){ sha=(await get.json()).sha; }
+    const put=await fetch(`https://api.github.com/repos/${c.repo}/contents/${path}`,{method:'PUT',headers:c.headers,
+      body:JSON.stringify({message:'chore: aggiorna portfolio da app',content:b64utf8(JSON.stringify(state.portfolio,null,2)),sha})});
+    if(!put.ok) throw new Error((await put.json()).message||put.status);
+    localStorage.removeItem(LS.dirty); hideBanner(); toast('ok','✔ Salvato su GitHub.');
+  }catch(e){ toast('err','Errore salvataggio: '+e.message); }
+}
+
+async function triggerWorkflow(mode){
+  const c=gh(); if(!c) return;
+  const wf=state.portfolio.settings?.priceRefreshWorkflow||'refresh.yml';
+  try{
+    toast('ok',`Avvio aggiornamento ${mode==='countries'?'composizioni':'prezzi'}…`,true);
+    const r=await fetch(`https://api.github.com/repos/${c.repo}/actions/workflows/${wf}/dispatches`,{method:'POST',headers:c.headers,
+      body:JSON.stringify({ref:'main',inputs:{mode}})});
+    if(r.status!==204) throw new Error((await r.json()).message||r.status);
+    toast('ok','Aggiornamento avviato su GitHub Actions. Attendo il completamento…',true);
+    await pollRun(c);
+    await reloadMarketData();
+    toast('ok','✔ Dati aggiornati.'); render();
+  }catch(e){ toast('err','Errore: '+e.message); }
+}
+async function pollRun(c){
+  for(let i=0;i<40;i++){ await new Promise(r=>setTimeout(r,4000));
+    const r=await fetch(`https://api.github.com/repos/${c.repo}/actions/runs?per_page=1`,{headers:c.headers});
+    if(!r.ok) continue; const run=(await r.json()).workflow_runs?.[0];
+    if(run && run.status==='completed') return run.conclusion;
+  }
+}
+async function reloadMarketData(){
+  state.market=await readData('data/market.json',state.market);
+  state.breakdown=await readData('data/breakdown.json',state.breakdown);
+  state.history=await readData('data/history.json',state.history);
+  state.assetHistory=await readData('data/asset_history.json',state.assetHistory);
+  const ts=state.market.aggiornatoAt; document.getElementById('lastupd').textContent= ts?'Prezzi: '+new Date(ts).toLocaleString('it-IT'):'Prezzi non aggiornati';
+}
+
+document.getElementById('btn-save').onclick=saveToGitHub;
+document.getElementById('btn-prices').onclick=()=>triggerWorkflow('prices');
+document.getElementById('btn-countries').onclick=()=>triggerWorkflow('countries');
+window.addEventListener('beforeunload',e=>{ if(localStorage.getItem(LS.dirty)==='1'){ e.preventDefault(); e.returnValue=''; } });
+
+boot();
+</script>
+</body>
+</html>
