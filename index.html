@@ -300,7 +300,6 @@ function renderDashboard(){
     <select id="geo-scope" style="padding:4px 8px;font-size:12px">
       <option value="all">Tutto il portafoglio</option>
       <option value="equity">Solo azionario</option>
-      <option value="noCash">Azioni + oro + bitcoin</option>
     </select></div><div class="chart-wrap"><canvas id="c-paesi"></canvas></div></div>`);
   geoCard.querySelector('#geo-scope').value=state.geoScope||'all';
   geoCard.querySelector('#geo-scope').onchange=e=>{ state.geoScope=e.target.value; render(); };
