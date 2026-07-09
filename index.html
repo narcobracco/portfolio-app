@@ -437,16 +437,16 @@ function assetTable(){
     const buy = live && pAtt < prezzoMeno10(a);   // sotto il prezzo medio −10% → occasione
     return `<tr${buy?' style="box-shadow:inset 3px 0 0 var(--pos)"':''}>
       <td><b>${esc(a.nome)}</b> <span class="pill">${esc(a.tipo)}</span>${buy?' <span class="pill" style="background:#12331f;color:#7be3a0">▼ DA COMPRARE</span>':''}<br><span class="muted" style="font-size:11px">${esc(pf.nome)} · ${esc(a.mercato)} · ${esc(a.isin)}${a.ticker?' · '+esc(a.ticker):''}</span></td>
-      <td class="tag ${clTag}">${esc(a.classe)}</td>
+      <td style="text-align:left"><span class="tag ${clTag}">${esc(a.classe)}</span></td>
       <td class="mono">${fmt(a.quote,0)}</td>
       <td class="mono">${fmt(a.prezzoMedio)}${a.prezzoQuote==='percent'?'<span class="muted"> /100</span>':''}</td>
       <td class="mono" title="prezzo medio −10%: sotto questa soglia scatta 'da comprare'">${fmt(prezzoMeno10(a))}</td>
-      <td class="mono ${buy?'pos':''}">${pAtt!=null?fmt(pAtt):'—'} ${live?(buy?'<span class="pill" style="background:#12331f;color:#7be3a0">◀ sotto −10%</span>':'<span class="pill" style="color:#7be3a0">live</span>'):'<span class="pill">n/d</span>'}</td>
+      <td class="mono ${buy?'pos':''}">${pAtt!=null?fmt(pAtt):'—'} ${live?(buy?'<span title="sotto il prezzo medio −10% · occasione d\'acquisto" style="color:#7be3a0;font-size:13px">▼</span>':'<span class="pill" style="color:#7be3a0">live</span>'):'<span class="pill">n/d</span>'}</td>
       <td class="mono">${eur(v)}</td>
       <td class="mono ${p>=0?'pos':'neg'}">${eur(p)}<br><span style="font-size:11px">${pct(pp)}</span></td>
       <td class="mono">${pct(attualePct,1)}</td>
       <td class="mono">${pct(a.targetPct||0,1)}</td>
-      <td class="mono ${deltaEur>=0?'':'neg'}">${deltaEur>=0?'+':'−'} ${eur(Math.abs(deltaEur))}<br><span style="font-size:11px">${deltaPct>=0?'+':'−'} ${fmt(Math.abs(deltaPct),1)} p.p.</span></td>
+      <td class="mono ${deltaEur>=0?'pos':'neg'}">${deltaEur>=0?'+':'−'} ${eur(Math.abs(deltaEur))}<br><span style="font-size:11px">${deltaPct>=0?'+':'−'} ${fmt(Math.abs(deltaPct),1)} p.p.</span></td>
     </tr>`;
   }).join('');
   const inv=list.reduce((s,{a})=>s+valore(a),0);
@@ -466,7 +466,7 @@ function assetTable(){
   }
   const card=el(`<div class="card" style="overflow-x:auto"><table>
     <thead><tr>
-      <th>Asset</th><th>Classe</th><th>Quote</th><th>Prz. medio</th><th>Medio −10%</th><th>Prz. attuale</th>
+      <th>Asset</th><th style="text-align:left">Classe</th><th>Quote</th><th>Prz. medio</th><th>Medio −10%</th><th>Prz. attuale</th>
       <th>Valore</th><th>P/L</th><th>% attuale</th><th>% target</th><th>Delta a target</th>
     </tr></thead>
     <tbody>${rows||'<tr><td colspan="11" class="muted">Nessun asset in questa categoria.</td></tr>'}</tbody>
