@@ -461,6 +461,7 @@ function assetTable(){
     return `<tr${buy?' style="box-shadow:inset 3px 0 0 var(--pos)"':''}>
       <td><b>${esc(a.nome)}</b> <span class="pill">${esc(a.tipo)}</span>${buy?' <span class="pill" style="background:#12331f;color:#7be3a0">▼ DA COMPRARE</span>':''}<br><span class="muted" style="font-size:11px">${esc(pf.nome)} · ${esc(a.mercato)} · ${esc(a.isin)}${a.ticker?' · '+esc(a.ticker):''}</span></td>
       <td style="text-align:left"><span class="tag ${clTag}">${esc(a.classe)}</span></td>
+      <td style="text-align:left" title="Accumulo / Distribuzione">${a.accDist?`<span class="pill" style="${a.accDist==='dist'?'background:#3d2f1a;color:#f5c97b':'background:#1e3d34;color:#7be3c0'}">${a.accDist==='dist'?'Dist':'Acc'}</span>`:'<span class="muted">—</span>'}</td>
       <td class="mono" title="costo annuo del prodotto (TER)">${(a.ter!=null&&a.ter!=='')?fmt(a.ter,2)+' %':'<span class="muted">—</span>'}</td>
       <td class="mono">${fmt(a.quote,0)}</td>
       <td class="mono">${fmt(a.prezzoMedio)}${a.prezzoQuote==='percent'?'<span class="muted"> /100</span>':''}</td>
@@ -491,12 +492,12 @@ function assetTable(){
   }
   const card=el(`<div class="card" style="overflow-x:auto"><table>
     <thead><tr>
-      <th>Asset</th><th style="text-align:left">Classe</th><th>TER</th><th>Quote</th><th>Prz. medio</th><th>Medio −10%</th><th>Prz. attuale</th>
+      <th>Asset</th><th style="text-align:left">Classe</th><th style="text-align:left">A/D</th><th>TER</th><th>Quote</th><th>Prz. medio</th><th>Medio −10%</th><th>Prz. attuale</th>
       <th>Valore</th><th>P/L</th><th>% attuale</th><th>% target</th><th>Delta a target</th>
     </tr></thead>
-    <tbody>${rows||'<tr><td colspan="12" class="muted">Nessun asset in questa categoria.</td></tr>'}</tbody>
+    <tbody>${rows||'<tr><td colspan="13" class="muted">Nessun asset in questa categoria.</td></tr>'}</tbody>
     <tfoot><tr style="font-weight:700">
-      <td>${tab.k==='all'?'Totale':tab.label}</td><td></td><td class="mono" title="TER medio ponderato">${wTer!=null?fmt(wTer,2)+' %':''}</td><td></td><td></td><td></td><td></td>
+      <td>${tab.k==='all'?'Totale':tab.label}</td><td></td><td></td><td class="mono" title="TER medio ponderato">${wTer!=null?fmt(wTer,2)+' %':''}</td><td></td><td></td><td></td><td></td>
       <td class="mono">${eur(inv)}</td><td class="mono ${p>=0?'pos':'neg'}">${eur(p)}</td><td class="mono">${pct(quotaWhole,1)}</td><td class="mono ${targetCls}" title="somma delle % target">${fmt(sumTarget,1)} %</td><td></td>
     </tr></tfoot>
   </table></div>`);
@@ -659,6 +660,7 @@ function editAsset(pf,a){
     <div class="frow"><label>Prezzo manuale</label><input id="f-pman" type="number" step="any" placeholder="solo se nessun simbolo Yahoo (es. BTP)" value="${a.prezzoManuale??''}"></div>
     <div class="frow"><label>Target %</label><input id="f-target" type="number" step="any" value="${a.targetPct??''}"></div>
     <div class="frow"><label>TER % annuo</label><input id="f-ter" type="number" step="any" placeholder="solo fondi/ETF (es. 0.20) · vuoto per azioni/BTP" value="${a.ter??''}"></div>
+    <div class="frow"><label>Accumulo / Distrib.</label><select id="f-ad"><option value="" ${!a.accDist?'selected':''}>— non specificato</option><option value="acc" ${a.accDist==='acc'?'selected':''}>Accumulo</option><option value="dist" ${a.accDist==='dist'?'selected':''}>Distribuzione (stacca cedole/dividendi)</option></select></div>
     <p class="hint">Prezzo medio −10% (calcolato): <b id="pm10">${a.prezzoMedio?fmt(a.prezzoMedio*0.9):'—'}</b>. Il “Simbolo Yahoo” serve per i prezzi live (per Borsa Italiana quasi sempre <code>TICKER.MI</code>).</p>
     ${geoHtml(a.isin)}
     <div class="modal-actions"><button class="toolbtn" id="cancel">Annulla</button><button class="add" id="ok">Salva</button></div></div>`);
@@ -675,7 +677,8 @@ function editAsset(pf,a){
     };
     const pman=g('#f-pman'); if(pman!=='') obj.prezzoManuale=Number(pman);
     const ter=g('#f-ter'); if(ter!=='') obj.ter=Number(ter);
-    if(isNew){ pf.assets.push(obj); } else { delete a.ter; Object.assign(a,obj); }
+    const ad=g('#f-ad'); if(ad!=='') obj.accDist=ad;
+    if(isNew){ pf.assets.push(obj); } else { delete a.ter; delete a.accDist; Object.assign(a,obj); }
     markDirty(); closeModal(); render();
   };
 }
