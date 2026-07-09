@@ -217,9 +217,16 @@ function classeAgg(cl){
 function composizioneClassi(){
   const m={}; for(const {a} of assetsFiltered()){ const k=classeAgg(a.classe); m[k]=(m[k]||0)+valore(a); } return m;
 }
+function geoScopeFilter(a){
+  const s=state.geoScope||'all';
+  if(s==='equity') return a.classe==='azionario';
+  if(s==='noCash') return a.classe!=='monetario' && a.classe!=='obbligazionario';
+  return true;
+}
 function concentrazionePaesi(){
-  const m={}; const tot=totInvestito()||1;
+  const m={};
   for(const {a} of assetsFiltered()){
+    if(!geoScopeFilter(a)) continue;
     const v=valore(a); const bd=state.breakdown.byIsin?.[a.isin];
     if(bd && bd.paesi){ for(const [p,w] of Object.entries(bd.paesi)) m[p]=(m[p]||0)+v*(w/100); }
     else { m['Non mappato']=(m['Non mappato']||0)+v; }
@@ -276,7 +283,17 @@ function renderDashboard(){
   // charts
   const cc=el('<div class="grid cards2" style="margin-top:14px"></div>');
   cc.appendChild(cardCanvas('Composizione per classe','c-classi'));
-  cc.appendChild(cardCanvas('Concentrazione geografica','c-paesi'));
+  // card geografia con selettore della base di calcolo
+  const geoCard=el(`<div class="card"><div class="flex" style="margin-bottom:12px">
+    <h3 style="margin:0">Concentrazione geografica</h3><span class="grow"></span>
+    <select id="geo-scope" style="padding:4px 8px;font-size:12px">
+      <option value="all">Tutto il portafoglio</option>
+      <option value="equity">Solo azionario</option>
+      <option value="noCash">Escludi liquidità e bond</option>
+    </select></div><div class="chart-wrap"><canvas id="c-paesi"></canvas></div></div>`);
+  geoCard.querySelector('#geo-scope').value=state.geoScope||'all';
+  geoCard.querySelector('#geo-scope').onchange=e=>{ state.geoScope=e.target.value; render(); };
+  cc.appendChild(geoCard);
   wrap.appendChild(cc);
   const cc2=el('<div class="grid" style="margin-top:14px"></div>');
   cc2.appendChild(cardCanvas('Andamento nel tempo'+(state.pfFilter==='ALL'?' (totale)':''),'c-andamento','tall'));
@@ -290,23 +307,51 @@ function renderDashboard(){
 function kpi(title,val,sub,cls=''){ return el(`<div class="card kpi"><h3>${title}</h3><div class="val ${cls}">${val}</div><div class="sub">${sub||''}</div></div>`); }
 function cardCanvas(title,id,extra=''){ return el(`<div class="card"><h3>${title}</h3><div class="chart-wrap ${extra}"><canvas id="${id}"></canvas></div></div>`); }
 
+let chartsInit=false;
+function initChartPlugins(){
+  if(chartsInit) return; chartsInit=true;
+  // Plugin: testo al centro della ciambella (totale)
+  Chart.register({
+    id:'centerText',
+    afterDraw(chart){
+      const t=chart.options.plugins.centerText; if(!t||!t.value) return;
+      const {ctx,chartArea}=chart; if(!chartArea) return;
+      const x=(chartArea.left+chartArea.right)/2, y=(chartArea.top+chartArea.bottom)/2;
+      const dark=matchMedia('(prefers-color-scheme: dark)').matches;
+      ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle=dark?'#e8edf2':'#1a2330'; ctx.font='700 19px system-ui';
+      ctx.fillText(t.value,x,y-7);
+      ctx.fillStyle=dark?'#93a1b0':'#5b6b7c'; ctx.font='500 10.5px system-ui';
+      ctx.fillText(t.title.toUpperCase(),x,y+13);
+      ctx.restore();
+    }
+  });
+}
 function drawDashboardCharts(){
+  initChartPlugins();
   const dark = matchMedia('(prefers-color-scheme: dark)').matches;
   const gridc = dark? '#2a323c':'#e2e8f0'; const txt=dark?'#93a1b0':'#5b6b7c';
+  const ringBg = dark? '#171c22':'#ffffff';
   Chart.defaults.color=txt; Chart.defaults.font.family='system-ui';
+  const donutDs=(colors)=>({
+    backgroundColor:colors, borderColor:ringBg, borderWidth:3, borderRadius:6,
+    spacing:2, hoverOffset:18, hoverBorderColor:ringBg,
+    offset:2  // leggero stacco di base per un look più arioso
+  });
+  const tot=totInvestito();
   // classi
   const cl=composizioneClassi(); const clk=Object.keys(cl); const clv=Object.values(cl);
   const c1=document.getElementById('c-classi');
   if(c1) state.charts.push(new Chart(c1,{type:'doughnut',
-    data:{labels:clk,datasets:[{data:clv,backgroundColor:clk.map(k=>CLASS_COLOR[k]||'#94a3b8'),borderWidth:0}]},
-    options:pieOpts()}));
+    data:{labels:clk,datasets:[{data:clv,...donutDs(clk.map(k=>CLASS_COLOR[k]||'#94a3b8'))}]},
+    options:pieOpts({title:'Investito',value:fmt(tot,0)+' €'})}));
   // paesi
   const pa=concentrazionePaesi(); let entries=Object.entries(pa).sort((a,b)=>b[1]-a[1]);
   if(entries.length>10){ const top=entries.slice(0,9); const rest=entries.slice(9).reduce((s,e)=>s+e[1],0); top.push(['Altri paesi',rest]); entries=top; }
   const c2=document.getElementById('c-paesi');
   if(c2) state.charts.push(new Chart(c2,{type:'doughnut',
-    data:{labels:entries.map(e=>e[0]),datasets:[{data:entries.map(e=>e[1]),backgroundColor:entries.map((_,i)=>PIE_COLORS[i%PIE_COLORS.length]),borderWidth:0}]},
-    options:pieOpts()}));
+    data:{labels:entries.map(e=>e[0]),datasets:[{data:entries.map(e=>e[1]),...donutDs(entries.map((_,i)=>PIE_COLORS[i%PIE_COLORS.length]))}]},
+    options:pieOpts({title:'Paesi',value:entries.length+''})}));
   // andamento
   const snaps=(state.history.snapshots||[]);
   let labels=[],dataline=[];
@@ -317,13 +362,35 @@ function drawDashboardCharts(){
   const c3=document.getElementById('c-andamento');
   if(c3){
     if(!snaps.length){ c3.parentElement.innerHTML='<p class="muted" style="padding:30px;text-align:center">Ancora nessuno storico. Verrà popolato ad ogni aggiornamento prezzi (uno snapshot al giorno).</p>'; }
-    else state.charts.push(new Chart(c3,{type:'line',
-      data:{labels,datasets:[{label:'Valore',data:dataline,borderColor:'#4c9ffe',backgroundColor:'rgba(76,159,254,.12)',fill:true,tension:.25,pointRadius:0,borderWidth:2}]},
-      options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:gridc}},y:{grid:{color:gridc},ticks:{callback:v=>fmt(v,0)+' €'}}}}}));
+    else{
+      const ctxg=c3.getContext('2d'); const grad=ctxg.createLinearGradient(0,0,0,320);
+      grad.addColorStop(0,'rgba(76,159,254,.38)'); grad.addColorStop(1,'rgba(76,159,254,0)');
+      const up = dataline.length>1 && dataline[dataline.length-1]>=dataline[0];
+      const line = up? '#31c48d' : '#f05252';
+      const gradC=ctxg.createLinearGradient(0,0,0,320);
+      gradC.addColorStop(0, up?'rgba(49,196,141,.34)':'rgba(240,82,82,.30)'); gradC.addColorStop(1,'rgba(0,0,0,0)');
+      state.charts.push(new Chart(c3,{type:'line',
+      data:{labels,datasets:[{label:'Valore',data:dataline,borderColor:line,backgroundColor:gradC,fill:true,tension:.35,
+        pointRadius:0,pointHoverRadius:6,pointHoverBackgroundColor:line,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2,
+        borderWidth:2.5,cubicInterpolationMode:'monotone'}]},
+      options:{maintainAspectRatio:false,animation:{duration:900,easing:'easeOutQuart'},
+        interaction:{intersect:false,mode:'index'},
+        plugins:{legend:{display:false},tooltip:{...tipStyle(dark),callbacks:{label:ctx=>' '+eur(ctx.raw)}}},
+        scales:{x:{grid:{display:false},ticks:{maxTicksLimit:8}},y:{grid:{color:gridc},border:{display:false},ticks:{callback:v=>fmt(v,0)+' €'}}}}}));
+    }
   }
 }
-function pieOpts(){ return {maintainAspectRatio:false,cutout:'58%',plugins:{legend:{position:'right',labels:{boxWidth:12,padding:8,font:{size:11}}},
-  tooltip:{callbacks:{label:ctx=>{const tot=ctx.dataset.data.reduce((a,b)=>a+b,0)||1;return ` ${ctx.label}: ${eur(ctx.raw)} (${(ctx.raw/tot*100).toFixed(1)}%)`;}}}}}; }
+function tipStyle(dark){ return {backgroundColor:dark?'#0f1216':'#1a2330',titleColor:'#fff',bodyColor:'#fff',padding:10,cornerRadius:8,displayColors:true,boxPadding:4,borderColor:'rgba(255,255,255,.08)',borderWidth:1}; }
+function pieOpts(center){
+  const dark=matchMedia('(prefers-color-scheme: dark)').matches;
+  return {maintainAspectRatio:false,cutout:'66%',radius:'92%',
+    animation:{animateRotate:true,animateScale:true,duration:850,easing:'easeOutQuart'},
+    interaction:{mode:'nearest',intersect:true},
+    plugins:{
+      centerText:center||null,
+      legend:{position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',padding:9,font:{size:11.5}}},
+      tooltip:{...tipStyle(dark),callbacks:{label:ctx=>{const tot=ctx.dataset.data.reduce((a,b)=>a+b,0)||1;return ` ${ctx.label}: ${eur(ctx.raw)} (${(ctx.raw/tot*100).toFixed(1)}%)`;}}}
+    }}; }
 
 function assetTable(){
   const tot=totInvestito()||1;
@@ -491,6 +558,16 @@ function editPortfolio(pf){
   };
 }
 
+function geoHtml(isin){
+  const bd=state.breakdown.byIsin?.[isin];
+  if(!bd||!bd.paesi) return '<div class="card" style="padding:12px;background:var(--panel2)"><b style="font-size:12px">🌍 Composizione geografica</b><p class="hint" style="margin:6px 0 0">Nessun dato per questo ISIN. Usa <b>↻ Composizioni</b> per scaricarlo da justETF, oppure impostalo a mano.</p></div>';
+  const rows=Object.entries(bd.paesi).sort((a,b)=>b[1]-a[1]).map(([p,w])=>
+    `<div style="display:flex;align-items:center;gap:8px;margin:3px 0"><span style="width:130px;font-size:12px">${esc(p)}</span>
+     <span class="bar" style="flex:1"><i style="width:${Math.min(100,w)}%;background:var(--accent)"></i></span>
+     <span class="mono" style="width:46px;text-align:right;font-size:12px">${fmt(w,1)}%</span></div>`).join('');
+  const fonte=bd.fonte==='auto'?'da justETF':'manuale';
+  return `<div class="card" style="padding:12px;background:var(--panel2)"><b style="font-size:12px">🌍 Composizione geografica <span class="pill">${fonte}</span></b><div style="margin-top:8px">${rows}</div></div>`;
+}
 function editAsset(pf,a){
   const isNew=!a; a=a||{prezzoQuote:'unit',classe:'azionario',tipo:'ETF',mercato:'Borsa Italiana'};
   const opt=(arr,val)=>arr.map(x=>`<option ${x===val?'selected':''}>${x}</option>`).join('');
@@ -508,6 +585,7 @@ function editAsset(pf,a){
     <div class="frow"><label>Prezzo manuale</label><input id="f-pman" type="number" step="any" placeholder="solo se nessun simbolo Yahoo (es. BTP)" value="${a.prezzoManuale??''}"></div>
     <div class="frow"><label>Target %</label><input id="f-target" type="number" step="any" value="${a.targetPct??''}"></div>
     <p class="hint">Prezzo medio −10% (calcolato): <b id="pm10">${a.prezzoMedio?fmt(a.prezzoMedio*0.9):'—'}</b>. Il “Simbolo Yahoo” serve per i prezzi live (per Borsa Italiana quasi sempre <code>TICKER.MI</code>).</p>
+    ${geoHtml(a.isin)}
     <div class="modal-actions"><button class="toolbtn" id="cancel">Annulla</button><button class="add" id="ok">Salva</button></div></div>`);
   m.querySelector('#f-pm').oninput=e=>{ const val=parseFloat(e.target.value); m.querySelector('#pm10').textContent= isNaN(val)?'—':fmt(val*0.9); };
   m.querySelector('#cancel').onclick=closeModal;
