@@ -161,7 +161,11 @@ async function boot(){
   state.assetHistory = await readData('data/asset_history.json', {});
   const ts=state.market.aggiornatoAt;
   document.getElementById('lastupd').textContent = ts? 'Prezzi: '+new Date(ts).toLocaleString('it-IT') : 'Prezzi non aggiornati';
-  refreshDirtyBanner();
+  // Diagnostica: repo+token impostati ma dati non leggibili -> messaggio chiaro
+  const repoSet=localStorage.getItem(LS.repo), tokSet=localStorage.getItem(LS.token);
+  if(repoSet && tokSet && !fileP && localStorage.getItem(LS.dirty)!=='1'){
+    toast('err','Non riesco a leggere i dati dal repo. Controlla: nome repo esatto (es. narcobracco/portfolio) e che il token abbia permessi Contents + Actions su quel repo.',true);
+  } else { refreshDirtyBanner(); }
   render();
 }
 function emptyPortfolio(){ return {meta:{baseCurrency:"EUR"},settings:{aggregaBtcOroInAzionario:false},liquidita:[],portafogli:[]}; }
@@ -242,6 +246,9 @@ function pfSelector(){
 
 function renderDashboard(){
   const wrap=el('<div></div>');
+  if(!localStorage.getItem(LS.repo)||!localStorage.getItem(LS.token)){
+    wrap.appendChild(el('<div class="card" style="border-color:#5a4620"><h3>Configurazione richiesta</h3><p class="muted" style="margin:0">Per vedere i tuoi dati vai su <b>Impostazioni</b> e inserisci <b>Repository</b> (<code>narcobracco/portfolio</code>) e <b>Token</b>. Senza, l\'app resta vuota (i dati sono privati).</p></div>'));
+  }
   wrap.appendChild(pfSelector());
   const inv=totInvestito(), cost=totCosto(), liq=totLiquidita();
   const plTot=inv-cost, plPct=cost? plTot/cost*100:0;
@@ -427,7 +434,13 @@ function renderImpostazioni(){
     <p class="hint">Serve un <b>Personal Access Token fine-grained</b> con permessi, su questo repo, di <b>Contents: Read&Write</b> e <b>Actions: Read&Write</b>. Viene salvato solo nel browser (localStorage). Con il token attivo puoi salvare i dati e lanciare gli aggiornamenti anche da telefono.</p>
     <div class="flex"><button class="add" id="savecfg">Salva configurazione</button>
       <button class="toolbtn" id="reload">↻ Ricarica dati da GitHub (scarta modifiche locali)</button></div></div>`);
-  c2.querySelector('#savecfg').onclick=()=>{ localStorage.setItem(LS.repo,document.getElementById('repo').value.trim()); localStorage.setItem(LS.token,document.getElementById('tok').value.trim()); toast('ok','Configurazione salvata.'); document.getElementById('repo-foot').innerHTML=`repo <b>${esc(document.getElementById('repo').value.trim())}</b>`; };
+  c2.querySelector('#savecfg').onclick=async()=>{
+    const r=document.getElementById('repo').value.trim(), t=document.getElementById('tok').value.trim();
+    localStorage.setItem(LS.repo,r); localStorage.setItem(LS.token,t);
+    document.getElementById('repo-foot').innerHTML=`repo <b>${esc(r)}</b>`;
+    toast('ok','Configurazione salvata, carico i dati…',true);
+    state.view='dashboard'; await boot();  // ricarica subito i dati dal repo privato
+  };
   c2.querySelector('#reload').onclick=async()=>{ if(confirm('Scartare le modifiche locali non salvate e ricaricare dal repo?')){ localStorage.removeItem(LS.portfolio); localStorage.removeItem(LS.dirty); await boot(); toast('ok','Dati ricaricati.'); } };
   wrap.appendChild(c2);
   // import/export
