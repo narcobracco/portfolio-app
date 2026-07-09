@@ -137,6 +137,7 @@ async function loadJSON(path, fallback){
 }
 // Lettura sicura: se c'è repo+token legge dal repo PRIVATO via API (dati mai pubblici),
 // altrimenti prova i file locali affianco all'app (../data/...).
+let lastApiError=null;
 async function readData(path, fallback){
   const repo=localStorage.getItem(LS.repo), token=localStorage.getItem(LS.token);
   if(repo && token){
@@ -144,11 +145,23 @@ async function readData(path, fallback){
       const r=await fetch(`https://api.github.com/repos/${repo}/contents/${path}?ref=main&_=${Date.now()}`,
         {headers:{'Authorization':'Bearer '+token,'Accept':'application/vnd.github.raw+json'}});
       if(r.ok) return await r.json();
-    }catch(e){ /* fallback sotto */ }
+      let msg='';
+      try{ msg=(await r.json()).message||''; }catch(e){}
+      lastApiError={status:r.status,message:msg,repo};
+    }catch(e){ lastApiError={status:0,message:'rete/CORS: '+e.message,repo}; }
   }
   return await loadJSON('../'+path, fallback);
 }
+function diagnoseApiError(){
+  const e=lastApiError; if(!e) return 'Dati non leggibili (causa sconosciuta).';
+  if(e.status===401) return `401 Non autorizzato: il TOKEN è errato o scaduto. Rigeneralo e reincollalo.`;
+  if(e.status===403) return `403 Vietato: al token MANCA il permesso "Contents: Read and write" sul repo ${e.repo}. Aggiungilo dalla pagina dei token.`;
+  if(e.status===404) return `404 Non trovato: nome repo errato ("${e.repo}") oppure il token non ha accesso a QUEL repo. Deve essere esattamente "narcobracco/portfolio".`;
+  if(e.status===0)   return `Errore di rete/CORS: ${e.message}`;
+  return `Errore ${e.status}: ${e.message}`;
+}
 async function boot(){
+  lastApiError=null;
   const repo=localStorage.getItem(LS.repo)||''; document.getElementById('repo-foot').innerHTML = repo? `repo <b>${esc(repo)}</b>` : 'repo non configurato';
   // portfolio: usa la copia locale se ci sono modifiche non salvate
   const local = localStorage.getItem(LS.portfolio);
@@ -164,7 +177,7 @@ async function boot(){
   // Diagnostica: repo+token impostati ma dati non leggibili -> messaggio chiaro
   const repoSet=localStorage.getItem(LS.repo), tokSet=localStorage.getItem(LS.token);
   if(repoSet && tokSet && !fileP && localStorage.getItem(LS.dirty)!=='1'){
-    toast('err','Non riesco a leggere i dati dal repo. Controlla: nome repo esatto (es. narcobracco/portfolio) e che il token abbia permessi Contents + Actions su quel repo.',true);
+    toast('err','⚠ '+diagnoseApiError(),true);
   } else { refreshDirtyBanner(); }
   render();
 }
