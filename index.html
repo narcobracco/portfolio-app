@@ -105,6 +105,17 @@
 <script>
 "use strict";
 // =========================================================================
+//  Auto-aggiornamento: aggira la cache di GitHub Pages senza toccare l'URL.
+//  Ad ogni apertura/refresh rigenera un "timbro" ?v=<ora> => il browser è
+//  costretto a scaricare l'ultima versione. Finestra di 4s per non ciclare.
+// =========================================================================
+(function(){
+  try{
+    var u=new URL(location.href), v=Number(u.searchParams.get('v')||0);
+    if(!v || (Date.now()-v)>4000){ u.searchParams.set('v',Date.now()); location.replace(u.toString()); }
+  }catch(e){}
+})();
+// =========================================================================
 //  Stato & caricamento
 // =========================================================================
 const LS = {
