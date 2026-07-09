@@ -300,7 +300,7 @@ function renderDashboard(){
     <select id="geo-scope" style="padding:4px 8px;font-size:12px">
       <option value="all">Tutto il portafoglio</option>
       <option value="equity">Solo azionario</option>
-      <option value="noCash">Escludi liquidità e bond</option>
+      <option value="noCash">Azioni + oro + bitcoin</option>
     </select></div><div class="chart-wrap"><canvas id="c-paesi"></canvas></div></div>`);
   geoCard.querySelector('#geo-scope').value=state.geoScope||'all';
   geoCard.querySelector('#geo-scope').onchange=e=>{ state.geoScope=e.target.value; render(); };
@@ -445,9 +445,9 @@ function assetTable(){
       <td class="mono ${buy?'pos':''}">${pAtt!=null?fmt(pAtt):'—'} ${live?(buy?'<span class="pill" style="background:#12331f;color:#7be3a0">◀ sotto −10%</span>':'<span class="pill" style="color:#7be3a0">live</span>'):'<span class="pill">n/d</span>'}</td>
       <td class="mono">${eur(v)}</td>
       <td class="mono ${p>=0?'pos':'neg'}">${eur(p)}<br><span style="font-size:11px">${pct(pp)}</span></td>
-      <td class="mono">${pct(attualePct)}</td>
-      <td class="mono">${pct(a.targetPct||0)}</td>
-      <td class="mono ${deltaEur>=0?'':'neg'}">${deltaEur>=0?'+':'−'} ${eur(Math.abs(deltaEur))}<br><span style="font-size:11px">${deltaPct>=0?'+':'−'} ${fmt(Math.abs(deltaPct))} p.p.</span></td>
+      <td class="mono">${pct(attualePct,1)}</td>
+      <td class="mono">${pct(a.targetPct||0,1)}</td>
+      <td class="mono ${deltaEur>=0?'':'neg'}">${deltaEur>=0?'+':'−'} ${eur(Math.abs(deltaEur))}<br><span style="font-size:11px">${deltaPct>=0?'+':'−'} ${fmt(Math.abs(deltaPct),1)} p.p.</span></td>
     </tr>`;
   }).join('');
   const inv=list.reduce((s,{a})=>s+valore(a),0);
@@ -473,7 +473,7 @@ function assetTable(){
     <tbody>${rows||'<tr><td colspan="11" class="muted">Nessun asset in questa categoria.</td></tr>'}</tbody>
     <tfoot><tr style="font-weight:700">
       <td>${tab.k==='all'?'Totale':tab.label}</td><td></td><td></td><td></td><td></td><td></td>
-      <td class="mono">${eur(inv)}</td><td class="mono ${p>=0?'pos':'neg'}">${eur(p)}</td><td class="mono">${pct(quotaWhole)}</td><td class="mono ${targetCls}" title="somma delle % target">${fmt(sumTarget)} %</td><td></td>
+      <td class="mono">${eur(inv)}</td><td class="mono ${p>=0?'pos':'neg'}">${eur(p)}</td><td class="mono">${pct(quotaWhole,1)}</td><td class="mono ${targetCls}" title="somma delle % target">${fmt(sumTarget,1)} %</td><td></td>
     </tr></tfoot>
   </table></div>`);
   const wrap=el('<div></div>'); wrap.append(tabsEl,card); return wrap;
