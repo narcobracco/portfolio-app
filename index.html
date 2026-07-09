@@ -218,6 +218,7 @@ function assetsFiltered(){
   return list;
 }
 function totInvestito(){ return assetsFiltered().reduce((s,{a})=>s+valore(a),0); }
+function portfolioValue(pfId){ const p=state.portfolio.portafogli.find(x=>x.id===pfId); return p? p.assets.reduce((s,a)=>s+valore(a),0):0; }
 function totCosto(){ return assetsFiltered().reduce((s,{a})=>s+costo(a),0); }
 function liquiditaEntries(){  // conti visibili in base al portafoglio selezionato
   const liq=state.portfolio.liquidita||[];
@@ -450,8 +451,9 @@ function assetTable(){
   const list=assetsFiltered().filter(({a})=>tab.f(a));
   const rows=list.map(({a,pf})=>{
     const v=valore(a), c=costo(a), p=pl(a), pp=c?p/c*100:0;
-    const attualePct=v/tot*100;
-    const targetEur=(a.targetPct||0)/100*tot;
+    const ownTot=portfolioValue(pf.id)||1;       // % e target SEMPRE sul portafoglio dell'asset
+    const attualePct=v/ownTot*100;
+    const targetEur=(a.targetPct||0)/100*ownTot;
     const deltaEur=v-targetEur;                  // + sopra target · − sotto (da incrementare)
     const deltaPct=attualePct-(a.targetPct||0);
     const live=priceIsLive(a);
@@ -505,10 +507,12 @@ function assetTable(){
     <tbody>${rows||'<tr><td colspan="12" class="muted">Nessun asset in questa categoria.</td></tr>'}</tbody>
     <tfoot><tr style="font-weight:700">
       <td>${tab.k==='all'?'Totale':tab.label}</td><td></td><td class="mono" title="TER medio ponderato">${wTer!=null?fmt(wTer,2)+' %':''}</td><td></td><td></td><td></td><td></td>
-      <td class="mono">${eur(inv)}</td><td class="mono ${p>=0?'pos':'neg'}">${eur(p)}</td><td class="mono">${pct(quotaWhole,1)}</td><td class="mono ${targetCls}" title="somma delle % target">${fmt(sumTarget,1)} %</td><td></td>
+      <td class="mono">${eur(inv)}</td><td class="mono ${p>=0?'pos':'neg'}">${eur(p)}</td><td class="mono">${pct(quotaWhole,1)}</td><td class="mono ${state.pfFilter!=='ALL'?targetCls:''}" title="somma delle % target (per portafoglio)">${state.pfFilter!=='ALL'?fmt(sumTarget,1)+' %':''}</td><td></td>
     </tr></tfoot>
   </table></div>`);
-  const wrap=el('<div></div>'); wrap.append(tabsEl,card); return wrap;
+  const wrap=el('<div></div>'); wrap.append(tabsEl,card);
+  if(state.pfFilter==='ALL') wrap.append(el('<p class="hint">In vista “Tutti i portafogli”: <b>% attuale, % target e Delta</b> sono calcolate su ciascun <b>singolo portafoglio</b> di appartenenza (i target sono per-portafoglio). La colonna “% attuale” in fondo indica invece quanto pesa la categoria sul totale complessivo.</p>'));
+  return wrap;
 }
 
 // ---------------- Portafogli (CRUD) ----------------
