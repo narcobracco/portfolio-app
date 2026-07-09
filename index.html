@@ -572,26 +572,35 @@ async function saveToGitHub(){
   }catch(e){ toast('err','Errore salvataggio: '+e.message,true); }
 }
 
+async function latestRunId(c){
+  const r=await fetch(`https://api.github.com/repos/${c.repo}/actions/runs?per_page=1&_=${Date.now()}`,{headers:c.headers,cache:'no-store'});
+  if(!r.ok) return null; return (await r.json()).workflow_runs?.[0]?.id ?? null;
+}
 async function triggerWorkflow(mode){
   const c=gh(); if(!c) return;
   const wf=state.portfolio.settings?.priceRefreshWorkflow||'refresh.yml';
   try{
     toast('ok',`Avvio aggiornamento ${mode==='countries'?'composizioni':'prezzi'}…`,true);
+    const beforeId=await latestRunId(c);       // ricorda l'ultima run PRIMA di lanciare
     const r=await fetch(`https://api.github.com/repos/${c.repo}/actions/workflows/${wf}/dispatches`,{method:'POST',headers:c.headers,
       body:JSON.stringify({ref:'main',inputs:{mode}})});
     if(r.status!==204) throw new Error((await r.json()).message||r.status);
-    toast('ok','Aggiornamento avviato su GitHub Actions. Attendo il completamento…',true);
-    await pollRun(c);
+    toast('ok','Aggiornamento avviato su GitHub Actions. Attendo il completamento (~1 min)…',true);
+    const concl=await pollNewRun(c,beforeId);  // aspetta la run NUOVA, non una vecchia
+    if(concl && concl!=='success'){ toast('err','L\'aggiornamento è finito con esito: '+concl+'. Controlla i log su GitHub.',true); return; }
     await reloadMarketData();
     toast('ok','✔ Dati aggiornati.'); render();
-  }catch(e){ toast('err','Errore: '+e.message); }
+  }catch(e){ toast('err','Errore: '+e.message,true); }
 }
-async function pollRun(c){
-  for(let i=0;i<40;i++){ await new Promise(r=>setTimeout(r,4000));
-    const r=await fetch(`https://api.github.com/repos/${c.repo}/actions/runs?per_page=1`,{headers:c.headers});
-    if(!r.ok) continue; const run=(await r.json()).workflow_runs?.[0];
+async function pollNewRun(c,beforeId){
+  for(let i=0;i<60;i++){ await new Promise(r=>setTimeout(r,4000));
+    const r=await fetch(`https://api.github.com/repos/${c.repo}/actions/runs?per_page=5&_=${Date.now()}`,{headers:c.headers,cache:'no-store'});
+    if(!r.ok) continue;
+    const runs=(await r.json()).workflow_runs||[];
+    const run=runs.find(x=>x.id!==beforeId);   // la prima run con id diverso = quella appena lanciata
     if(run && run.status==='completed') return run.conclusion;
   }
+  return null; // timeout: ricarico comunque, male non fa
 }
 async function reloadMarketData(){
   state.market=await readData('data/market.json',state.market);
