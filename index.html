@@ -219,7 +219,19 @@ function assetsFiltered(){
 }
 function totInvestito(){ return assetsFiltered().reduce((s,{a})=>s+valore(a),0); }
 function totCosto(){ return assetsFiltered().reduce((s,{a})=>s+costo(a),0); }
-function totLiquidita(){ return (state.portfolio.liquidita||[]).reduce((s,c)=>s+Number(c.importo||0),0); }
+function liquiditaEntries(){  // conti visibili in base al portafoglio selezionato
+  const liq=state.portfolio.liquidita||[];
+  return state.pfFilter==='ALL' ? liq : liq.filter(c=>c.portafoglioId===state.pfFilter);
+}
+function totLiquidita(){ return liquiditaEntries().reduce((s,c)=>s+Number(c.importo||0),0); }
+function terMedioPonderato(assets){  // TER medio pesato sul valore, solo asset con TER
+  let num=0, den=0;
+  for(const a of assets){ const t=Number(a.ter); if(a.ter!=null&&a.ter!==''&&!isNaN(t)){ const v=valore(a); num+=v*t; den+=v; } }
+  return den? num/den : null;
+}
+function costoAnnuoStimato(assets){  // € stimati/anno = somma valore*ter/100
+  return assets.reduce((s,a)=>{ const t=Number(a.ter); return s+((a.ter!=null&&a.ter!==''&&!isNaN(t))? valore(a)*t/100 : 0); },0);
+}
 
 function classeAgg(cl){
   if(state.portfolio.settings?.aggregaBtcOroInAzionario && (cl==='bitcoin'||cl==='materie prime')) return 'azionario';
@@ -289,7 +301,9 @@ function renderDashboard(){
   k.appendChild(kpi('Patrimonio totale', eur(patrimonio), 'investito + liquidità'));
   k.appendChild(kpi('Investito', eur(inv), `costo ${eur(cost)}`));
   k.appendChild(kpi('P/L non realizzato', eur(plTot), pct(plPct), plTot>=0?'pos':'neg'));
-  k.appendChild(kpi('Liquidità in banca', eur(liq), (state.portfolio.liquidita||[]).filter(c=>c.banca).map(c=>c.banca).join(', ')||'—'));
+  k.appendChild(kpi('Liquidità in banca', eur(liq), liquiditaEntries().filter(c=>c.banca).map(c=>c.banca).join(', ')||'—'));
+  const allA=assetsFiltered().map(x=>x.a); const wTer=terMedioPonderato(allA);
+  if(wTer!=null) k.appendChild(kpi('TER medio ponderato', pct(wTer), `~${eur(costoAnnuoStimato(allA),0)}/anno di costi stimati`, wTer>1?'neg':''));
   wrap.appendChild(k);
   // charts
   const cc=el('<div class="grid cards2" style="margin-top:14px"></div>');
@@ -447,6 +461,7 @@ function assetTable(){
     return `<tr${buy?' style="box-shadow:inset 3px 0 0 var(--pos)"':''}>
       <td><b>${esc(a.nome)}</b> <span class="pill">${esc(a.tipo)}</span>${buy?' <span class="pill" style="background:#12331f;color:#7be3a0">▼ DA COMPRARE</span>':''}<br><span class="muted" style="font-size:11px">${esc(pf.nome)} · ${esc(a.mercato)} · ${esc(a.isin)}${a.ticker?' · '+esc(a.ticker):''}</span></td>
       <td style="text-align:left"><span class="tag ${clTag}">${esc(a.classe)}</span></td>
+      <td class="mono" title="costo annuo del prodotto (TER)">${(a.ter!=null&&a.ter!=='')?fmt(a.ter,2)+' %':'<span class="muted">—</span>'}</td>
       <td class="mono">${fmt(a.quote,0)}</td>
       <td class="mono">${fmt(a.prezzoMedio)}${a.prezzoQuote==='percent'?'<span class="muted"> /100</span>':''}</td>
       <td class="mono" title="prezzo medio −10%: sotto questa soglia scatta 'da comprare'">${fmt(prezzoMeno10(a))}</td>
@@ -464,6 +479,7 @@ function assetTable(){
   const sumTarget=list.reduce((s,{a})=>s+(Number(a.targetPct)||0),0);
   const targetCls = (state.detailTab||'all')==='all' && Math.abs(sumTarget-100)>=0.05 ? 'neg' : '';
   const quotaWhole = inv/tot*100;
+  const wTer = terMedioPonderato(list.map(x=>x.a));
   // tab
   const tabsEl=el('<div class="flex" style="gap:6px;margin-bottom:10px;flex-wrap:wrap"></div>');
   for(const t of DETAIL_TABS){
@@ -475,12 +491,12 @@ function assetTable(){
   }
   const card=el(`<div class="card" style="overflow-x:auto"><table>
     <thead><tr>
-      <th>Asset</th><th style="text-align:left">Classe</th><th>Quote</th><th>Prz. medio</th><th>Medio −10%</th><th>Prz. attuale</th>
+      <th>Asset</th><th style="text-align:left">Classe</th><th>TER</th><th>Quote</th><th>Prz. medio</th><th>Medio −10%</th><th>Prz. attuale</th>
       <th>Valore</th><th>P/L</th><th>% attuale</th><th>% target</th><th>Delta a target</th>
     </tr></thead>
-    <tbody>${rows||'<tr><td colspan="11" class="muted">Nessun asset in questa categoria.</td></tr>'}</tbody>
+    <tbody>${rows||'<tr><td colspan="12" class="muted">Nessun asset in questa categoria.</td></tr>'}</tbody>
     <tfoot><tr style="font-weight:700">
-      <td>${tab.k==='all'?'Totale':tab.label}</td><td></td><td></td><td></td><td></td><td></td>
+      <td>${tab.k==='all'?'Totale':tab.label}</td><td></td><td class="mono" title="TER medio ponderato">${wTer!=null?fmt(wTer,2)+' %':''}</td><td></td><td></td><td></td><td></td>
       <td class="mono">${eur(inv)}</td><td class="mono ${p>=0?'pos':'neg'}">${eur(p)}</td><td class="mono">${pct(quotaWhole,1)}</td><td class="mono ${targetCls}" title="somma delle % target">${fmt(sumTarget,1)} %</td><td></td>
     </tr></tfoot>
   </table></div>`);
@@ -534,23 +550,26 @@ function renderLiquidita(){
   const add=el('<button class="add">+ Aggiungi conto</button>');
   add.onclick=()=>{ state.portfolio.liquidita.push({id:'cash-'+Date.now(),banca:'',importo:0,note:''}); markDirty(); render(); };
   head.appendChild(add); wrap.appendChild(head);
-  const card=el('<div class="card" style="overflow-x:auto"><table><thead><tr><th>Banca / Conto</th><th>Importo (€)</th><th>Note</th><th></th></tr></thead><tbody></tbody></table></div>');
+  const card=el('<div class="card" style="overflow-x:auto"><table><thead><tr><th>Banca / Conto</th><th>Importo (€)</th><th style="text-align:left">Portafoglio</th><th>Note</th><th></th></tr></thead><tbody></tbody></table></div>');
   const tb=card.querySelector('tbody');
+  const pfOpts=c=>['<option value="">Generale (tutti)</option>'].concat(
+    state.portfolio.portafogli.map(pf=>`<option value="${pf.id}" ${c.portafoglioId===pf.id?'selected':''}>${esc(pf.nome)}</option>`)).join('');
   for(const c of (state.portfolio.liquidita||[])){
     const r=el(`<tr>
-      <td><input value="${esc(c.banca)}" style="width:200px" data-f="banca"></td>
-      <td><input type="number" step="0.01" value="${c.importo}" style="width:140px;text-align:right" data-f="importo"></td>
-      <td><input value="${esc(c.note||'')}" style="width:240px" data-f="note"></td>
+      <td><input value="${esc(c.banca)}" style="width:180px" data-f="banca"></td>
+      <td><input type="number" step="0.01" value="${c.importo}" style="width:130px;text-align:right" data-f="importo"></td>
+      <td style="text-align:left"><select style="width:180px" data-f="portafoglioId">${pfOpts(c)}</select></td>
+      <td><input value="${esc(c.note||'')}" style="width:200px" data-f="note"></td>
       <td><button class="mini danger" data-d>🗑</button></td></tr>`);
-    r.querySelectorAll('input').forEach(inp=>inp.onchange=()=>{ c[inp.dataset.f]= inp.dataset.f==='importo'? Number(inp.value): inp.value; markDirty(); refreshFooterTotals(); });
+    r.querySelectorAll('input,select').forEach(inp=>inp.onchange=()=>{ c[inp.dataset.f]= inp.dataset.f==='importo'? Number(inp.value): inp.value; markDirty(); refreshFooterTotals(); });
     r.querySelector('[data-d]').onclick=()=>{ state.portfolio.liquidita=state.portfolio.liquidita.filter(x=>x!==c); markDirty(); render(); };
     tb.appendChild(r);
   }
   wrap.appendChild(card);
-  wrap.appendChild(el(`<p class="hint">Totale liquidità: <b id="liqtot">${eur(totLiquidita())}</b>. Questo capitale è tenuto separato dagli investimenti e sommato nel “Patrimonio totale”.</p>`));
+  wrap.appendChild(el(`<p class="hint">Totale liquidità (tutti): <b id="liqtot">${eur((state.portfolio.liquidita||[]).reduce((s,c)=>s+Number(c.importo||0),0))}</b>. Assegna un conto a un portafoglio per vederlo solo quando selezioni quel portafoglio nella dashboard; “Generale” conta solo nella vista “Tutti”.</p>`));
   return wrap;
 }
-function refreshFooterTotals(){ const e=document.getElementById('liqtot'); if(e) e.textContent=eur(totLiquidita()); }
+function refreshFooterTotals(){ const e=document.getElementById('liqtot'); if(e) e.textContent=eur((state.portfolio.liquidita||[]).reduce((s,c)=>s+Number(c.importo||0),0)); }
 
 // ---------------- Impostazioni ----------------
 function renderImpostazioni(){
@@ -639,6 +658,7 @@ function editAsset(pf,a){
     <div class="frow"><label>Simbolo Yahoo</label><input id="f-yahoo" placeholder="es. SWDA.MI (per prezzi live)" value="${esc(a.yahoo||'')}"></div>
     <div class="frow"><label>Prezzo manuale</label><input id="f-pman" type="number" step="any" placeholder="solo se nessun simbolo Yahoo (es. BTP)" value="${a.prezzoManuale??''}"></div>
     <div class="frow"><label>Target %</label><input id="f-target" type="number" step="any" value="${a.targetPct??''}"></div>
+    <div class="frow"><label>TER % annuo</label><input id="f-ter" type="number" step="any" placeholder="solo fondi/ETF (es. 0.20) · vuoto per azioni/BTP" value="${a.ter??''}"></div>
     <p class="hint">Prezzo medio −10% (calcolato): <b id="pm10">${a.prezzoMedio?fmt(a.prezzoMedio*0.9):'—'}</b>. Il “Simbolo Yahoo” serve per i prezzi live (per Borsa Italiana quasi sempre <code>TICKER.MI</code>).</p>
     ${geoHtml(a.isin)}
     <div class="modal-actions"><button class="toolbtn" id="cancel">Annulla</button><button class="add" id="ok">Salva</button></div></div>`);
@@ -654,7 +674,8 @@ function editAsset(pf,a){
       targetPct:g('#f-target')===''?0:Number(g('#f-target'))
     };
     const pman=g('#f-pman'); if(pman!=='') obj.prezzoManuale=Number(pman);
-    if(isNew){ pf.assets.push(obj); } else { Object.assign(a,obj); }
+    const ter=g('#f-ter'); if(ter!=='') obj.ter=Number(ter);
+    if(isNew){ pf.assets.push(obj); } else { delete a.ter; Object.assign(a,obj); }
     markDirty(); closeModal(); render();
   };
 }
