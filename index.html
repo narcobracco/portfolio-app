@@ -446,10 +446,16 @@ const DETAIL_TABS=[
   {k:'bitcoin',        label:'Bitcoin',        f:a=>a.classe==='bitcoin'},
   {k:'etf',            label:'ETF/ETC/ETN',    f:a=>['ETF','ETC','ETN','ETP'].includes(a.tipo)},
 ];
+const CLASS_ORDER={"azionario":0,"obbligazionario":1,"monetario":2,"materie prime":3,"bitcoin":4};
+function sortByClasseValore(a,b){  // raggruppa per classe, poi valore decrescente
+  const ca=CLASS_ORDER[a.classe]??9, cb=CLASS_ORDER[b.classe]??9;
+  if(ca!==cb) return ca-cb;
+  return valore(b)-valore(a);
+}
 function assetTable(){
   const tot=totInvestito()||1;
   const tab=DETAIL_TABS.find(t=>t.k===(state.detailTab||'all'))||DETAIL_TABS[0];
-  const list=assetsFiltered().filter(({a})=>tab.f(a));
+  const list=assetsFiltered().filter(({a})=>tab.f(a)).sort((x,y)=>sortByClasseValore(x.a,y.a));
   const rows=list.map(({a,pf})=>{
     const v=valore(a), c=costo(a), p=pl(a), pp=c?p/c*100:0;
     const ced=Number(a.liquidazioni)||0;         // cedole/proventi incassati
@@ -540,8 +546,8 @@ function renderPortafogli(){
     if(pf.assets.length){
       const t=el('<div style="overflow-x:auto;margin-top:6px"><table><thead><tr><th>Asset</th><th>Tipo</th><th>Classe</th><th>Mercato</th><th>Quote</th><th>Prz.medio</th><th>Medio −10%</th><th>Valore</th><th>Target%</th><th></th></tr></thead><tbody></tbody></table></div>');
       const tb=t.querySelector('tbody');
-      for(const a of pf.assets){
-        const r=el(`<tr>
+      for(const a of [...pf.assets].sort(sortByClasseValore)){
+        const r=el(`<tr style="box-shadow:inset 4px 0 0 ${CLASS_COLOR[a.classe]||'#94a3b8'}">
           <td><b>${esc(a.nome)}</b><br><span class="muted" style="font-size:11px">${esc(a.isin)}${a.ticker?' · '+esc(a.ticker):''}${a.yahoo?' · '+esc(a.yahoo):''}</span></td>
           <td>${esc(a.tipo)}</td><td>${esc(a.classe)}</td><td>${esc(a.mercato)}</td>
           <td class="mono">${fmt(a.quote,0)}</td><td class="mono">${fmt(a.prezzoMedio)}</td><td class="mono">${fmt(prezzoMeno10(a))}</td>
