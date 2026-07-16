@@ -452,10 +452,32 @@ function sortByClasseValore(a,b){  // raggruppa per classe, poi valore decrescen
   if(ca!==cb) return ca-cb;
   return valore(b)-valore(a);
 }
+// colonne ordinabili: chiave -> funzione che estrae il valore da ({a,pf})
+const SORT_KEYS={
+  nome:      x=>x.a.nome.toLowerCase(),
+  ad:        x=>x.a.accDist||'',
+  ter:       x=>Number(x.a.ter)??-1,
+  quote:     x=>Number(x.a.quote)||0,
+  pmedio:    x=>Number(x.a.prezzoMedio)||0,
+  meno10:    x=>prezzoMeno10(x.a),
+  patt:      x=>priceUnit(x.a)??-1,
+  valore:    x=>valore(x.a),
+  pl:        x=>pl(x.a),
+  pctatt:    x=>valore(x.a)/(portfolioValue(x.pf.id)||1),
+  pcttarget: x=>Number(x.a.targetPct)||0,
+  delta:     x=>valore(x.a)-((Number(x.a.targetPct)||0)/100*(portfolioValue(x.pf.id)||1)),
+};
 function assetTable(){
   const tot=totInvestito()||1;
   const tab=DETAIL_TABS.find(t=>t.k===(state.detailTab||'all'))||DETAIL_TABS[0];
-  const list=assetsFiltered().filter(({a})=>tab.f(a)).sort((x,y)=>sortByClasseValore(x.a,y.a));
+  let list=assetsFiltered().filter(({a})=>tab.f(a));
+  const srt=state.sort;
+  if(srt && SORT_KEYS[srt.col]){
+    const f=SORT_KEYS[srt.col], dir=srt.dir==='asc'?1:-1;
+    list=list.slice().sort((x,y)=>{ const a=f(x),b=f(y); return (typeof a==='string'? a.localeCompare(b): a-b)*dir; });
+  } else {
+    list=list.slice().sort((x,y)=>sortByClasseValore(x.a,y.a));
+  }
   const rows=list.map(({a,pf})=>{
     const v=valore(a), c=costo(a), p=pl(a), pp=c?p/c*100:0;
     const ced=Number(a.liquidazioni)||0;         // cedole/proventi incassati
@@ -508,10 +530,12 @@ function assetTable(){
     legend.appendChild(el(`<span style="display:inline-flex;align-items:center;gap:5px"><i style="width:11px;height:11px;border-radius:3px;background:${col};display:inline-block"></i>${cls}</span>`));
   }
   tabsEl.appendChild(legend);
+  const car=k=>srt&&srt.col===k?(srt.dir==='asc'?' ▲':' ▼'):'';
+  const th=(k,label,left)=>`<th data-sort="${k}" style="cursor:pointer;user-select:none${left?';text-align:left':''}" title="ordina per ${label}">${label}${car(k)}</th>`;
   const card=el(`<div class="card" style="overflow-x:auto"><table>
     <thead><tr>
-      <th>Asset</th><th style="text-align:left">A/D</th><th>TER</th><th>Quote</th><th>Prz. medio</th><th>Medio −10%</th><th>Prz. attuale</th>
-      <th>Valore</th><th>P/L</th><th>% attuale</th><th>% target</th><th>Delta a target</th>
+      ${th('nome','Asset',true)}${th('ad','A/D',true)}${th('ter','TER')}${th('quote','Quote')}${th('pmedio','Prz. medio')}${th('meno10','Medio −10%')}${th('patt','Prz. attuale')}
+      ${th('valore','Valore')}${th('pl','P/L')}${th('pctatt','% attuale')}${th('pcttarget','% target')}${th('delta','Delta a target')}
     </tr></thead>
     <tbody>${rows||'<tr><td colspan="12" class="muted">Nessun asset in questa categoria.</td></tr>'}</tbody>
     <tfoot><tr style="font-weight:700">
@@ -519,7 +543,17 @@ function assetTable(){
       <td class="mono">${eur(inv)}</td><td class="mono ${p>=0?'pos':'neg'}">${eur(p)}</td><td class="mono">${pct(quotaWhole,1)}</td><td class="mono ${state.pfFilter!=='ALL'?targetCls:''}" title="somma delle % target (per portafoglio)">${state.pfFilter!=='ALL'?fmt(sumTarget,1)+' %':''}</td><td></td>
     </tr></tfoot>
   </table></div>`);
+  // click sulle intestazioni: default → desc → asc → default
+  card.querySelectorAll('th[data-sort]').forEach(h=>h.onclick=()=>{
+    const k=h.dataset.sort, cur=state.sort;
+    if(!cur||cur.col!==k) state.sort={col:k,dir:'desc'};
+    else if(cur.dir==='desc') state.sort={col:k,dir:'asc'};
+    else state.sort=null;   // torna al raggruppamento per classe
+    render();
+  });
   const wrap=el('<div></div>'); wrap.append(tabsEl,card);
+  const nota = state.sort? `Ordinato per <b>${state.sort.col}</b> (${state.sort.dir==='asc'?'crescente':'decrescente'}). Clicca ancora per invertire, un\'altra volta per tornare al raggruppamento per classe.` : 'Raggruppato per <b>classe</b>, poi valore. Clicca un\'intestazione per ordinare.';
+  wrap.append(el(`<p class="hint">↕ ${nota}</p>`));
   if(state.pfFilter==='ALL') wrap.append(el('<p class="hint">In vista “Tutti i portafogli”: <b>% attuale, % target e Delta</b> sono calcolate su ciascun <b>singolo portafoglio</b> di appartenenza (i target sono per-portafoglio). La colonna “% attuale” in fondo indica invece quanto pesa la categoria sul totale complessivo.</p>'));
   return wrap;
 }
