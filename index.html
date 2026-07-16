@@ -322,7 +322,9 @@ function renderDashboard(){
   cc.appendChild(geoCard);
   wrap.appendChild(cc);
   const cc2=el('<div class="grid" style="margin-top:14px"></div>');
-  cc2.appendChild(cardCanvas('Andamento nel tempo'+(state.pfFilter==='ALL'?' (totale)':''),'c-andamento','tall'));
+  const andCard=cardCanvas('Valore nel tempo'+(state.pfFilter==='ALL'?' (totale)':''),'c-andamento','tall');
+  andCard.append(el('<p class="hint">Controvalore in € del portafoglio, un punto per ogni aggiornamento prezzi. È il <b>valore</b>, non il rendimento: se aggiungi (o vendi) posizioni la linea sale (o scende) anche senza variazioni di mercato.</p>'));
+  cc2.appendChild(andCard);
   wrap.appendChild(cc2);
   // table
   wrap.appendChild(el('<h2 class="sec">Dettaglio posizioni</h2>'));
@@ -342,6 +344,7 @@ function initChartPlugins(){
   Chart.register({
     id:'centerText',
     afterDraw(chart){
+      if(chart.config.type!=='doughnut' && chart.config.type!=='pie') return; // solo ciambelle
       const t=chart.options.plugins.centerText; if(!t) return;
       const {ctx,chartArea}=chart; if(!chartArea) return;
       const x=(chartArea.left+chartArea.right)/2, y=(chartArea.top+chartArea.bottom)/2;
