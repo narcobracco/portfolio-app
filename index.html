@@ -727,6 +727,15 @@ async function freshSha(c,path){
   if(get.status===404) return null; // file non esiste ancora
   throw new Error('lettura sha: '+get.status);
 }
+function targetWarnings(){  // portafogli con somma target != 100% (non blocca, solo avvisa)
+  const bad=[];
+  for(const pf of state.portfolio.portafogli){
+    if(!pf.assets.length) continue;
+    const s=pf.assets.reduce((x,a)=>x+(Number(a.targetPct)||0),0);
+    if(Math.abs(s-100)>=0.05) bad.push(`${pf.nome}: target ${fmt(s,1)}% (${s>100?'+':''}${fmt(s-100,1)})`);
+  }
+  return bad.length? 'Somma target ≠ 100% → '+bad.join(' · ') : '';
+}
 async function saveToGitHub(){
   const c=gh(); if(!c) return;
   state.portfolio.meta=state.portfolio.meta||{}; state.portfolio.meta.updatedAt=new Date().toISOString();
@@ -738,7 +747,8 @@ async function saveToGitHub(){
       const sha=await freshSha(c,path);
       const put=await fetch(`https://api.github.com/repos/${c.repo}/contents/${path}`,{method:'PUT',headers:c.headers,
         body:JSON.stringify({message:'chore: aggiorna portfolio da app',content:body,sha})});
-      if(put.ok){ localStorage.removeItem(LS.dirty); hideBanner(); toast('ok','✔ Salvato su GitHub.'); return; }
+      if(put.ok){ localStorage.removeItem(LS.dirty); hideBanner();
+        const w=targetWarnings(); toast(w?'dirty':'ok', w? '✔ Salvato. ⚠ '+w : '✔ Salvato su GitHub.', !!w); return; }
       // 409 = conflitto sha (qualcuno/qualcosa ha scritto nel frattempo): riprova con sha fresco
       if(put.status===409 && tent<3){ await new Promise(r=>setTimeout(r,500)); continue; }
       throw new Error((await put.json()).message||put.status);
